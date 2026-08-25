@@ -1,4 +1,24 @@
-# aiomql
+# AutoTrader-MT5 v1
+
+DEMO-only multi-asset trading bot built on `Ichinga-Samuel/aiomql` v4.1.2.
+
+It scans EURUSD, GBPUSD, USDJPY, XAUUSD, NASDAQ, SP500, BTCUSD, and ETHUSD on M5/M15; resolves broker symbol
+suffixes/prefixes; combines trend, breakout, momentum, and mean-reversion strategies into a 0-100 score; and
+enforces mandatory SL/TP, daily loss, simultaneous risk, correlated exposure, and position limits. Live signals
+and backtests share the same signal engine.
+
+**Version 1 refuses real-money accounts at multiple runtime boundaries.** Start with the complete
+[installation, configuration, architecture, and backtesting guide](docs/AUTOTRADER.md).
+
+## Quick verification
+
+```bash
+PYTHONPATH=src python -m unittest discover -s tests_autotrader -v
+```
+
+---
+
+## Upstream framework: aiomql
 
 ![aiomql](docs/images/cover.png)
 

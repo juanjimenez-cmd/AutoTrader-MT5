@@ -1,0 +1,102 @@
+# AutoTrader-MT5 v1
+
+AutoTrader-MT5 is a DEMO-only, multi-asset scanner and execution layer built directly inside the
+[`aiomql`](https://github.com/Ichinga-Samuel/aiomql) codebase. It prioritizes auditable architecture and
+risk controls; it does not claim or optimize profitability.
+
+## Safety boundary
+
+Version 1 cannot be configured for real-money execution. It rejects `demo_only=false`, validates
+MetaTrader's authoritative `ACCOUNT_TRADE_MODE_DEMO` value after login, revalidates it on every account read,
+and checks again immediately before order submission or stop modification. Never place real credentials in
+`autotrader.credentials.json`.
+
+## Architecture
+
+- `config.py`: typed TOML configuration and asset profiles.
+- `symbols.py`: exact/prefix/suffix alias resolution for broker-specific names.
+- `strategies/`: independent trend, breakout, momentum, and mean-reversion votes.
+- `signals.py`: shared M5/M15 ensemble and normalized 0-100 score.
+- `risk.py`: daily loss, position, portfolio-risk, and correlation-group gates.
+- `engine.py`: concurrent market-data scanner with sequential risk-aware execution.
+- `management.py`: breakeven and ATR trailing stops, restricted to this bot's magic number.
+- `mt5_adapter.py`: lazy Windows/MetaTrader adapter over `aiomql`.
+- `storage.py`: append-only JSONL plus SQLite events.
+- `backtest.py`: conservative simulator using the same signal and risk classes as live mode.
+
+The scanner downloads symbols concurrently. Qualified signals are then sorted by score and handled one at a
+time; accepted orders are immediately included in the in-memory portfolio, preventing a burst of signals from
+bypassing simultaneous or group risk limits.
+
+## Windows installation for live DEMO
+
+Requirements are inherited from aiomql: Windows, MetaTrader 5, Python 3.13 or newer, and a DEMO account.
+
+```powershell
+git clone <your-repository-url> AutoTrader-MT5
+cd AutoTrader-MT5
+py -3.13 -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -e ".[dev]"
+Copy-Item configs\autotrader.credentials.example.json autotrader.credentials.json
+```
+
+Edit `autotrader.credentials.json` with DEMO credentials and verify that MetaTrader shows the intended DEMO
+account. Credentials and logs are ignored by Git.
+
+Run one non-repeating cycle first:
+
+```powershell
+autotrader-mt5 live --config configs/autotrader.toml --once
+```
+
+Then inspect `logs/events.jsonl` or `logs/autotrader.sqlite3`. To run continuously:
+
+```powershell
+autotrader-mt5 live --config configs/autotrader.toml
+```
+
+Stop with `Ctrl+C`. Missing broker instruments are logged and skipped; the bot stops if none resolve.
+
+## Backtesting
+
+Backtesting does not connect to MetaTrader and can run anywhere with Python 3.13+. Supply M5 CSV data with
+`time,open,high,low,close` and optional `volume` or `tick_volume`. `time` may be a Unix timestamp or ISO-8601.
+M15 bars are derived from M5, and the unfinished current bar is never included in a decision.
+
+```bash
+PYTHONPATH=src python -m autotrader_mt5 backtest \
+  --config configs/autotrader.toml \
+  --csv data/EURUSD_M5.csv \
+  --symbol EURUSD \
+  --output backtesting/EURUSD-report.json
+```
+
+The simulator allows one position per symbol, sizes P&L from configured percentage risk, and assumes the stop
+was hit before the target when both prices occur inside a single candle. It does not model spread, commission,
+slippage, swaps, partial fills, news gaps, or broker latency. Add these before using results for decisions.
+
+## Configuration
+
+`configs/autotrader.toml` contains all v1 markets, M5/M15 timeframes, minimum score, scan cadence, asset risk,
+ATR stops, reward/risk ratios, daily loss, total exposure, maximum positions, USD/index/crypto group limits,
+breakeven, trailing, and broker aliases. Percentages are percentage points: `0.50` means 0.50% of equity.
+
+The score is based on vote conviction, agreement, and strategy/timeframe coverage. M15 and trend votes receive
+slightly higher weights; mean reversion receives a lower weight because it naturally conflicts with trend
+signals. A score is a filter, not a probability of profit.
+
+## Verification
+
+Run the dependency-free AutoTrader tests outside Windows:
+
+```bash
+PYTHONPATH=src python -m unittest discover -s tests_autotrader -v
+```
+
+Run the upstream aiomql suite on its supported Windows environment after installing development dependencies:
+
+```powershell
+pytest tests
+```
