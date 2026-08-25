@@ -55,6 +55,14 @@ platform = [
 
 all = ["aiomql[talib, optional, platform]"]
 
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["aiomql*", "autotrader_mt5*"]
+
 [dependency-groups]
 dev = [
     "jupyter>=1.1.1",

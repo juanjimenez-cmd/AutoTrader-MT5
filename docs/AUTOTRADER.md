@@ -51,7 +51,7 @@ cd AutoTrader-MT5
 py -3.13 -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-pip install -e ".[windows]"
+pip install ".[windows]"
 Copy-Item configs\autotrader.credentials.example.json autotrader.credentials.json
 autotrader-mt5 doctor --config configs/autotrader.toml
 ```
@@ -71,7 +71,7 @@ cd AutoTrader-MT5
 python3.13 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-pip install -e '.[macos]'
+pip install '.[macos]'
 cp configs/autotrader.credentials.example.json autotrader.credentials.json
 ./scripts/macos_bridge.sh provision
 ```

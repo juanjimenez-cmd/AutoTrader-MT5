@@ -86,7 +86,7 @@ class MT5Runtime:
             try:
                 mt5 = self._load("MetaTrader5")
             except (ImportError, ModuleNotFoundError) as error:
-                raise RuntimeError("Install the Windows dependency with: pip install -e '.[windows]'") from error
+                raise RuntimeError("Install the Windows dependency with: pip install '.[windows]'") from error
             kwargs: dict[str, object] = {
                 "login": int(login),
                 "password": str(password),
@@ -108,7 +108,7 @@ class MT5Runtime:
         try:
             bridge = self._load("mt5_mac_bridge")
         except (ImportError, ModuleNotFoundError) as error:
-            raise RuntimeError("Install the macOS dependency with: pip install -e '.[macos]'") from error
+            raise RuntimeError("Install the macOS dependency with: pip install '.[macos]'") from error
         try:
             handle = bridge.init(
                 backend="bridge",

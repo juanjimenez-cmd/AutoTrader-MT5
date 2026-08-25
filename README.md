@@ -15,13 +15,13 @@ macOS through a local paper-trading bridge. Start with the complete
 
 ```powershell
 # Windows PowerShell
-pip install -e ".[windows]"
+pip install ".[windows]"
 autotrader-mt5 doctor --config configs/autotrader.toml
 ```
 
 ```bash
 # macOS Terminal
-python3.13 -m pip install -e '.[macos]'
+python3.13 -m pip install '.[macos]'
 ./scripts/macos_bridge.sh provision
 # Run `./scripts/macos_bridge.sh serve` in a dedicated Terminal window.
 autotrader-mt5 doctor --config configs/autotrader.toml
