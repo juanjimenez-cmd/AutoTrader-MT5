@@ -26,6 +26,9 @@ description = "Asynchronous MetaTrader5 library and Algorithmic Trading Framewor
 "Homepage" = "https://github.com/Ichinga-Samuel/aiomql"
 "Bug Tracker" = "https://github.com/Ichinga-Samuel/aiomql/issues"
 
+[project.scripts]
+autotrader-mt5 = "autotrader_mt5.cli:main"
+
 [project.optional-dependencies]
 
 optional = [

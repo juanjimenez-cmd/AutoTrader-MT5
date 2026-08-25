@@ -76,6 +76,9 @@ target/
 
 # config files
 aiomql.json
+autotrader.credentials.json
+logs/
+*.jsonl
 
 # development 
 terminals/

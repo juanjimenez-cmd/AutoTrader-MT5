@@ -1,0 +1,84 @@
+[bot]
+symbols = ["EURUSD", "GBPUSD", "USDJPY", "XAUUSD", "NASDAQ", "SP500", "BTCUSD", "ETHUSD"]
+timeframes = ["M5", "M15"]
+min_score = 65
+scan_interval_seconds = 60
+candle_count = 120
+demo_only = true
+magic_number = 26082601
+credentials_file = "../autotrader.credentials.json"
+log_directory = "../logs"
+
+[risk]
+default_risk_percent = 0.50
+daily_loss_limit_percent = 2.0
+max_simultaneous_risk_percent = 3.0
+max_positions = 5
+
+[risk.max_group_risk_percent]
+usd = 1.50
+us_indices = 1.00
+crypto = 1.00
+
+[management]
+breakeven_at_r = 1.0
+trailing_start_at_r = 1.5
+trailing_atr_multiplier = 1.25
+
+[profiles.EURUSD]
+risk_percent = 0.50
+atr_stop_multiplier = 1.50
+reward_risk = 2.0
+group = "usd"
+
+[profiles.GBPUSD]
+risk_percent = 0.50
+atr_stop_multiplier = 1.60
+reward_risk = 2.0
+group = "usd"
+
+[profiles.USDJPY]
+risk_percent = 0.50
+atr_stop_multiplier = 1.50
+reward_risk = 2.0
+group = "usd"
+
+[profiles.XAUUSD]
+risk_percent = 0.40
+atr_stop_multiplier = 2.00
+reward_risk = 2.0
+group = "usd"
+
+[profiles.NASDAQ]
+risk_percent = 0.40
+atr_stop_multiplier = 2.00
+reward_risk = 2.0
+group = "us_indices"
+
+[profiles.SP500]
+risk_percent = 0.40
+atr_stop_multiplier = 1.80
+reward_risk = 2.0
+group = "us_indices"
+
+[profiles.BTCUSD]
+risk_percent = 0.30
+atr_stop_multiplier = 2.50
+reward_risk = 2.0
+group = "crypto"
+
+[profiles.ETHUSD]
+risk_percent = 0.30
+atr_stop_multiplier = 2.50
+reward_risk = 2.0
+group = "crypto"
+
+[aliases]
+EURUSD = ["EURUSD"]
+GBPUSD = ["GBPUSD"]
+USDJPY = ["USDJPY"]
+XAUUSD = ["XAUUSD", "GOLD"]
+NASDAQ = ["NASDAQ", "NAS100", "USTEC", "US100", "NDX"]
+SP500 = ["SP500", "SPX500", "US500", "SPX"]
+BTCUSD = ["BTCUSD", "BTCUSDT", "BITCOIN"]
+ETHUSD = ["ETHUSD", "ETHUSDT", "ETHEREUM"]
