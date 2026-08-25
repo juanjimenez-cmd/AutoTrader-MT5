@@ -57,6 +57,19 @@ class ManagementConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class MT5ConnectionConfig:
+    backend: str = "auto"
+    bridge_host: str = "127.0.0.1"
+    bridge_port: int = 18813
+
+    def __post_init__(self) -> None:
+        if self.backend not in {"auto", "native", "bridge"}:
+            raise ValueError("mt5.backend must be auto, native, or bridge")
+        if not 1 <= self.bridge_port <= 65535:
+            raise ValueError("mt5.bridge_port must be between 1 and 65535")
+
+
+@dataclass(frozen=True, slots=True)
 class AppConfig:
     symbols: tuple[str, ...]
     timeframes: tuple[str, ...]
@@ -69,6 +82,7 @@ class AppConfig:
     log_directory: Path
     risk: RiskConfig
     management: ManagementConfig
+    mt5: MT5ConnectionConfig
     profiles: dict[str, AssetProfile]
     aliases: dict[str, tuple[str, ...]]
 
@@ -102,6 +116,7 @@ def load_config(path: str | Path) -> AppConfig:
     bot = raw.get("bot", {})
     risk_raw = raw.get("risk", {})
     management_raw = raw.get("management", {})
+    mt5_raw = raw.get("mt5", {})
     profiles_raw = raw.get("profiles", {})
     aliases_raw = raw.get("aliases", {})
 
@@ -121,6 +136,11 @@ def load_config(path: str | Path) -> AppConfig:
         breakeven_at_r=float(management_raw.get("breakeven_at_r", 1.0)),
         trailing_start_at_r=float(management_raw.get("trailing_start_at_r", 1.5)),
         trailing_atr_multiplier=float(management_raw.get("trailing_atr_multiplier", 1.25)),
+    )
+    mt5 = MT5ConnectionConfig(
+        backend=str(mt5_raw.get("backend", "auto")).lower(),
+        bridge_host=str(mt5_raw.get("bridge_host", "127.0.0.1")),
+        bridge_port=int(mt5_raw.get("bridge_port", 18813)),
     )
     profiles: dict[str, AssetProfile] = {}
     for symbol in bot.get("symbols", DEFAULT_ALIASES):
@@ -146,6 +166,7 @@ def load_config(path: str | Path) -> AppConfig:
         log_directory=_as_path(str(bot.get("log_directory", "logs")), base),
         risk=risk,
         management=management,
+        mt5=mt5,
         profiles=profiles,
         aliases=aliases,
     )

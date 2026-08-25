@@ -7,8 +7,28 @@ suffixes/prefixes; combines trend, breakout, momentum, and mean-reversion strate
 enforces mandatory SL/TP, daily loss, simultaneous risk, correlated exposure, and position limits. Live signals
 and backtests share the same signal engine.
 
-**Version 1 refuses real-money accounts at multiple runtime boundaries.** Start with the complete
-[installation, configuration, architecture, and backtesting guide](docs/AUTOTRADER.md).
+**Version 1 refuses real-money accounts at multiple runtime boundaries.** It supports native Windows and
+macOS through a local paper-trading bridge. Start with the complete
+[Windows/macOS installation, configuration, architecture, and backtesting guide](docs/AUTOTRADER.md).
+
+## Platform install
+
+```powershell
+# Windows PowerShell
+pip install -e ".[windows]"
+autotrader-mt5 doctor --config configs/autotrader.toml
+```
+
+```bash
+# macOS Terminal
+python3.13 -m pip install -e '.[macos]'
+./scripts/macos_bridge.sh provision
+# Run `./scripts/macos_bridge.sh serve` in a dedicated Terminal window.
+autotrader-mt5 doctor --config configs/autotrader.toml
+```
+
+The macOS bridge is intended only for this v1 DEMO/forward-testing boundary. Backtesting works on either
+platform without MetaTrader or the bridge.
 
 ## Quick verification
 
@@ -57,10 +77,10 @@ so you can focus on your trading logic instead of boilerplate.
 
 ---
 
-## Requirements
+## Upstream requirements
 
 - **Python ≥ 3.13**
-- **Windows** (MetaTrader 5 terminal requirement)
+- **Windows** for aiomql's original direct MetaTrader integration
 - A MetaTrader 5 trading account
 
 ---

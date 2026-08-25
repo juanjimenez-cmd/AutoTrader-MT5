@@ -13,7 +13,6 @@ keywords = ["MetaTrader5", "Asynchronous", "Algorithmic Trading", "Trading Bot",
             "Technical Analysis", "Forex", "Stocks", "Cryptocurrency", "Futures", "Options", "Crypto", "Algo Trading"]
 
 dependencies = [
-    "metatrader5>=5.0.5640",
     "mplfinance>=0.12.10b0",
     "pandas>=3.0.1",
 ]
@@ -41,7 +40,20 @@ talib = [
     "ta-lib>=0.6.8",
 ]
 
-all = ["aiomql[talib, optional]"]
+windows = [
+    "metatrader5>=5.0.5640; sys_platform == 'win32'",
+]
+
+macos = [
+    "mt5-mac-bridge[bridge]>=0.1.0,<0.2; sys_platform == 'darwin'",
+]
+
+platform = [
+    "metatrader5>=5.0.5640; sys_platform == 'win32'",
+    "mt5-mac-bridge[bridge]>=0.1.0,<0.2; sys_platform == 'darwin'",
+]
+
+all = ["aiomql[talib, optional, platform]"]
 
 [dependency-groups]
 dev = [

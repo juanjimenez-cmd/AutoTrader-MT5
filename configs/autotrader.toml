@@ -9,6 +9,12 @@ magic_number = 26082601
 credentials_file = "../autotrader.credentials.json"
 log_directory = "../logs"
 
+[mt5]
+# auto selects the official native API on Windows and the local bridge on macOS.
+backend = "auto"
+bridge_host = "127.0.0.1"
+bridge_port = 18813
+
 [risk]
 default_risk_percent = 0.50
 daily_loss_limit_percent = 2.0

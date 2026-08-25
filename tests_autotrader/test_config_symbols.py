@@ -10,6 +10,11 @@ class ConfigAndSymbolTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "demo_only"):
             replace(test_config(), demo_only=False)
 
+    def test_platform_transport_defaults_to_auto(self):
+        config = test_config()
+        self.assertEqual(config.mt5.backend, "auto")
+        self.assertEqual(config.mt5.bridge_port, 18813)
+
     def test_resolves_common_broker_names(self):
         config = test_config()
         resolver = SymbolResolver(config.aliases)

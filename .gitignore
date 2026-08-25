@@ -86,3 +86,4 @@ backtesting/
 trade_records/
 plots/
 db/
+.mt5-bridge-runtime/

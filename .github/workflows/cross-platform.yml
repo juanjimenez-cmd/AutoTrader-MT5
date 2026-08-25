@@ -1,0 +1,24 @@
+name: Cross-platform tests
+
+on:
+  push:
+    branches: [main, feature/autotrader-mt5-v1]
+  pull_request:
+
+jobs:
+  unit-tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install platform dependencies
+        run: python -m pip install -e ".[platform]"
+      - name: Run AutoTrader tests
+        run: python -m unittest discover -s tests_autotrader -v

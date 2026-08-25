@@ -20,7 +20,8 @@ and checks again immediately before order submission or stop modification. Never
 - `risk.py`: daily loss, position, portfolio-risk, and correlation-group gates.
 - `engine.py`: concurrent market-data scanner with sequential risk-aware execution.
 - `management.py`: breakeven and ATR trailing stops, restricted to this bot's magic number.
-- `mt5_adapter.py`: lazy Windows/MetaTrader adapter over `aiomql`.
+- `mt5_runtime.py`: platform selector for official Windows MT5 or the local macOS bridge.
+- `mt5_adapter.py`: one async broker interface shared by both platform transports.
 - `storage.py`: append-only JSONL plus SQLite events.
 - `backtest.py`: conservative simulator using the same signal and risk classes as live mode.
 
@@ -28,32 +29,84 @@ The scanner downloads symbols concurrently. Qualified signals are then sorted by
 time; accepted orders are immediately included in the in-memory portfolio, preventing a burst of signals from
 bypassing simultaneous or group risk limits.
 
-## Windows installation for live DEMO
+## Common preparation
 
-Requirements are inherited from aiomql: Windows, MetaTrader 5, Python 3.13 or newer, and a DEMO account.
+Install Python 3.13 or newer, install MetaTrader 5, create a DEMO account, and clone this repository. Copy the
+credential template without committing the resulting file:
+
+```text
+configs/autotrader.credentials.example.json -> autotrader.credentials.json
+```
+
+Fill `login`, `password`, and `server` with the DEMO account. The optional `path` is the Windows path to
+`terminal64.exe`; the sample value also matches the standard path inside the macOS Wine environment.
+
+## Windows live DEMO
+
+Windows uses MetaQuotes' official Python package and talks directly to the open local terminal.
 
 ```powershell
-git clone <your-repository-url> AutoTrader-MT5
+git clone https://github.com/juanjimenez-cmd/AutoTrader-MT5.git
 cd AutoTrader-MT5
 py -3.13 -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-pip install -e ".[dev]"
+pip install -e ".[windows]"
 Copy-Item configs\autotrader.credentials.example.json autotrader.credentials.json
+autotrader-mt5 doctor --config configs/autotrader.toml
 ```
 
-Edit `autotrader.credentials.json` with DEMO credentials and verify that MetaTrader shows the intended DEMO
-account. Credentials and logs are ignored by Git.
+Open MetaTrader 5, log in to that same DEMO account, and enable the **Algo Trading** toolbar button.
 
-Run one non-repeating cycle first:
+## macOS live DEMO
 
-```powershell
+The official `MetaTrader5` Python wheel is Windows-only. On macOS this project uses
+[`mt5-mac-bridge`](https://github.com/theauheral/mt5-mac-bridge) 0.1.x to reach the official MetaTrader 5 Mac
+app through its local Wine environment. This is a community-maintained beta layer, so v1 permits it only
+because the entire bot is DEMO-only.
+
+```bash
+git clone https://github.com/juanjimenez-cmd/AutoTrader-MT5.git
+cd AutoTrader-MT5
+python3.13 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -e '.[macos]'
+cp configs/autotrader.credentials.example.json autotrader.credentials.json
+./scripts/macos_bridge.sh provision
+```
+
+The helper downloads the bridge source at pinned revision
+`1e8450748d0eaea47a324bbb8d77238061c67bd2`, then provisions Windows Python and the official MT5 package
+inside the existing MetaTrader app environment. Review `scripts/macos_bridge.sh` before running it. Open the
+MetaTrader 5 app, log in to the DEMO account once, and enable **Algo Trading**. Keep this command open in a
+second Terminal window:
+
+```bash
+./scripts/macos_bridge.sh serve
+```
+
+Back in the project Terminal, verify the dependency, credentials, and local bridge:
+
+```bash
+autotrader-mt5 doctor --config configs/autotrader.toml
+```
+
+The default bridge address is `127.0.0.1:18813`; change `[mt5]` in the TOML only if the local bridge uses a
+different address. AutoTrader never falls back to simulated/mock market data in live mode.
+
+## First live cycle on either platform
+
+Verify that MetaTrader shows the intended DEMO account. Credentials and logs are ignored by Git. Run one
+non-repeating cycle first:
+
+```bash
 autotrader-mt5 live --config configs/autotrader.toml --once
 ```
 
 Then inspect `logs/events.jsonl` or `logs/autotrader.sqlite3`. To run continuously:
 
-```powershell
+```bash
 autotrader-mt5 live --config configs/autotrader.toml
 ```
 
@@ -61,7 +114,7 @@ Stop with `Ctrl+C`. Missing broker instruments are logged and skipped; the bot s
 
 ## Backtesting
 
-Backtesting does not connect to MetaTrader and can run anywhere with Python 3.13+. Supply M5 CSV data with
+Backtesting does not connect to MetaTrader and runs on both Windows and macOS with Python 3.13+. Supply M5 CSV data with
 `time,open,high,low,close` and optional `volume` or `tick_volume`. `time` may be a Unix timestamp or ISO-8601.
 M15 bars are derived from M5, and the unfinished current bar is never included in a decision.
 
@@ -79,7 +132,8 @@ slippage, swaps, partial fills, news gaps, or broker latency. Add these before u
 
 ## Configuration
 
-`configs/autotrader.toml` contains all v1 markets, M5/M15 timeframes, minimum score, scan cadence, asset risk,
+`configs/autotrader.toml` contains the `auto` platform transport, macOS bridge endpoint, all v1 markets,
+M5/M15 timeframes, minimum score, scan cadence, asset risk,
 ATR stops, reward/risk ratios, daily loss, total exposure, maximum positions, USD/index/crypto group limits,
 breakeven, trailing, and broker aliases. Percentages are percentage points: `0.50` means 0.50% of equity.
 
