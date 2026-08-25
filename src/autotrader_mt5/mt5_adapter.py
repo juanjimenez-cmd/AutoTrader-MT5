@@ -78,6 +78,8 @@ class MT5Broker:
     async def candles(self, symbol: str, timeframe: str, count: int) -> list[Candle]:
         imports = self._imports()
         timeframe_value = getattr(imports["TimeFrame"], timeframe)
+        if not await self.mt5.symbol_select(symbol, True):
+            raise RuntimeError(f"Broker refused to select {symbol} in Market Watch")
         rates = await self.mt5.copy_rates_from_pos(symbol, timeframe_value, 1, count)
         if rates is None or len(rates) < count:
             raise RuntimeError(f"Insufficient {timeframe} candles for {symbol}: {0 if rates is None else len(rates)}")
@@ -152,6 +154,10 @@ class MT5Broker:
             direction = Direction.LONG if int(item.type) == 0 else Direction.SHORT
             canonical = self._canonical_by_broker.get(item.symbol, item.symbol)
             profile = self.config.profile_for(canonical)
+            initial_stop = float(item.sl)
+            if float(item.tp) > 0 and profile.reward_risk > 0:
+                initial_distance = abs(float(item.tp) - float(item.price_open)) / profile.reward_risk
+                initial_stop = float(item.price_open) - initial_distance * direction.sign
             risk_percent = 0.0
             stop_is_risk = (
                 direction is Direction.LONG and 0 < float(item.sl) < float(item.price_open)
@@ -177,7 +183,7 @@ class MT5Broker:
                     take_profit=float(item.tp),
                     group=profile.group,
                     risk_percent=risk_percent,
-                    initial_stop_loss=float(item.sl),
+                    initial_stop_loss=initial_stop,
                     magic=int(getattr(item, "magic", 0)),
                 )
             )
@@ -238,7 +244,11 @@ class MT5Broker:
         if checked is None or int(checked.retcode) != 0:
             return OrderResult(False, message=f"order_check failed: {getattr(checked, 'comment', 'no response')}")
         result = await self.mt5.order_send(payload)
-        accepted_codes = {int(imports["TradeRetcode"].DONE), int(imports["TradeRetcode"].PLACED)}
+        accepted_codes = {
+            int(imports["TradeRetcode"].DONE),
+            int(imports["TradeRetcode"].DONE_PARTIAL),
+            int(imports["TradeRetcode"].PLACED),
+        }
         accepted = result is not None and int(result.retcode) in accepted_codes
         return OrderResult(
             accepted=accepted,
