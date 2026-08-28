@@ -21,6 +21,9 @@ class ConfigAndSymbolTests(unittest.TestCase):
         self.assertEqual(config.risk.max_deposit_load_percent, 25.0)
         self.assertEqual(config.risk.max_positions, 2)
         self.assertEqual(config.risk.max_group_risk_percent["usd"], 0.50)
+        self.assertTrue(config.sessions.weekend_guard_enabled)
+        self.assertEqual(config.sessions.friday_entry_cutoff_utc, "20:30")
+        self.assertEqual(config.sessions.sunday_entry_resume_utc, "22:30")
         self.assertNotIn("GBPUSD", config.symbols)
         self.assertNotIn("USDJPY", config.symbols)
 

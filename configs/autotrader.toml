@@ -33,6 +33,14 @@ breakeven_at_r = 1.0
 trailing_start_at_r = 1.5
 trailing_atr_multiplier = 1.25
 
+[sessions]
+# Conservative UTC window. Existing positions are still managed, but no new
+# Forex, gold, or US-index positions are opened near the weekend closure.
+weekend_guard_enabled = true
+friday_entry_cutoff_utc = "20:30"
+sunday_entry_resume_utc = "22:30"
+guarded_groups = ["usd", "us_indices"]
+
 [profiles.EURUSD]
 risk_percent = 0.10
 atr_stop_multiplier = 1.50

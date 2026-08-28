@@ -58,6 +58,28 @@ class ManagementConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class SessionConfig:
+    weekend_guard_enabled: bool = True
+    friday_entry_cutoff_utc: str = "20:30"
+    sunday_entry_resume_utc: str = "22:30"
+    guarded_groups: tuple[str, ...] = ("usd", "us_indices")
+
+    def __post_init__(self) -> None:
+        for field_name, value in (
+            ("friday_entry_cutoff_utc", self.friday_entry_cutoff_utc),
+            ("sunday_entry_resume_utc", self.sunday_entry_resume_utc),
+        ):
+            parts = value.split(":")
+            if len(parts) != 2 or not all(part.isdigit() for part in parts):
+                raise ValueError(f"sessions.{field_name} must use HH:MM UTC")
+            hour, minute = map(int, parts)
+            if not 0 <= hour <= 23 or not 0 <= minute <= 59:
+                raise ValueError(f"sessions.{field_name} must use HH:MM UTC")
+        if not self.guarded_groups:
+            raise ValueError("sessions.guarded_groups must not be empty")
+
+
+@dataclass(frozen=True, slots=True)
 class MT5ConnectionConfig:
     backend: str = "auto"
     bridge_host: str = "127.0.0.1"
@@ -83,6 +105,7 @@ class AppConfig:
     log_directory: Path
     risk: RiskConfig
     management: ManagementConfig
+    sessions: SessionConfig
     mt5: MT5ConnectionConfig
     profiles: dict[str, AssetProfile]
     aliases: dict[str, tuple[str, ...]]
@@ -119,6 +142,7 @@ def load_config(path: str | Path) -> AppConfig:
     bot = raw.get("bot", {})
     risk_raw = raw.get("risk", {})
     management_raw = raw.get("management", {})
+    sessions_raw = raw.get("sessions", {})
     mt5_raw = raw.get("mt5", {})
     profiles_raw = raw.get("profiles", {})
     aliases_raw = raw.get("aliases", {})
@@ -140,6 +164,12 @@ def load_config(path: str | Path) -> AppConfig:
         breakeven_at_r=float(management_raw.get("breakeven_at_r", 1.0)),
         trailing_start_at_r=float(management_raw.get("trailing_start_at_r", 1.5)),
         trailing_atr_multiplier=float(management_raw.get("trailing_atr_multiplier", 1.25)),
+    )
+    sessions = SessionConfig(
+        weekend_guard_enabled=bool(sessions_raw.get("weekend_guard_enabled", True)),
+        friday_entry_cutoff_utc=str(sessions_raw.get("friday_entry_cutoff_utc", "20:30")),
+        sunday_entry_resume_utc=str(sessions_raw.get("sunday_entry_resume_utc", "22:30")),
+        guarded_groups=tuple(map(str, sessions_raw.get("guarded_groups", ("usd", "us_indices")))),
     )
     mt5 = MT5ConnectionConfig(
         backend=str(mt5_raw.get("backend", "auto")).lower(),
@@ -170,6 +200,7 @@ def load_config(path: str | Path) -> AppConfig:
         log_directory=_as_path(str(bot.get("log_directory", "logs")), base),
         risk=risk,
         management=management,
+        sessions=sessions,
         mt5=mt5,
         profiles=profiles,
         aliases=aliases,

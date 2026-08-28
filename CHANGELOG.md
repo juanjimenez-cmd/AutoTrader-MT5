@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Block new Forex, gold, and US-index entries during a configurable conservative weekend closure window.
+- Keep cryptocurrency entry handling separate from the weekend guard.
+- Add deterministic session-boundary and engine-level regression tests.
+
+## Unreleased
+
 - Reduced the default and per-asset DEMO risk to 0.10%.
 - Added a 25% projected deposit-load cap using MetaTrader margin calculation before order submission.
 - Changed the daily-loss gate to reserve open and proposed risk before admitting a trade.

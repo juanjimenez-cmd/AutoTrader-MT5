@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
+from datetime import datetime, timezone
 import logging
 
 from .broker import Broker
@@ -10,6 +12,7 @@ from .config import AppConfig
 from .management import PositionManager
 from .models import OrderRequest, Position, ScoredSignal
 from .risk import RiskManager
+from .sessions import EntrySessionGuard
 from .signals import SignalEngine
 from .storage import EventStore
 from .symbols import SymbolResolver
@@ -18,13 +21,20 @@ logger = logging.getLogger(__name__)
 
 
 class AutoTrader:
-    def __init__(self, config: AppConfig, broker: Broker):
+    def __init__(
+        self,
+        config: AppConfig,
+        broker: Broker,
+        clock: Callable[[], datetime] | None = None,
+    ):
         self.config = config
         self.broker = broker
         self.signal_engine = SignalEngine()
         self.risk_manager = RiskManager(config)
         self.store = EventStore(config.log_directory)
         self.position_manager = PositionManager(config, broker, self.store)
+        self.session_guard = EntrySessionGuard(config.sessions)
+        self.clock = clock or (lambda: datetime.now(timezone.utc))
         self.resolved_symbols: dict[str, str] = {}
         self.execution_blocked_symbols: dict[str, str] = {}
         self._stop = asyncio.Event()
@@ -100,6 +110,18 @@ class AutoTrader:
         positions = list(await self.broker.positions())
         projected_margin = account.margin
         for signal in candidates:
+            entry_allowed, session_reason = self.session_guard.evaluate(
+                self.config.profile_for(signal.canonical_symbol).group,
+                self.clock(),
+            )
+            if not entry_allowed:
+                self.store.record(
+                    "session_rejection",
+                    {"signal": signal, "reason": session_reason},
+                    signal.canonical_symbol,
+                )
+                logger.warning("Skipping %s: %s", signal.canonical_symbol, session_reason)
+                continue
             decision = self.risk_manager.evaluate(signal, account, tuple(positions))
             if not decision.allowed:
                 self.store.record("risk_rejection", {"signal": signal, "decision": decision}, signal.canonical_symbol)

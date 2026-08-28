@@ -136,7 +136,13 @@ slippage, swaps, partial fills, news gaps, or broker latency. Add these before u
 `configs/autotrader.toml` contains the `auto` platform transport, macOS bridge endpoint, v1 market profiles,
 enabled markets, M5/M15 timeframes, minimum score, scan cadence, asset risk, ATR stops, reward/risk ratios,
 daily loss, total exposure, maximum deposit load, maximum positions, USD/index/crypto group limits, breakeven,
-trailing, and broker aliases. Percentages are percentage points: `0.10` means 0.10% of equity.
+trailing, weekend entry guard, and broker aliases. Percentages are percentage points: `0.10` means 0.10% of
+equity.
+
+The weekend guard blocks new `usd` and `us_indices` positions from Friday 20:30 UTC until Sunday 22:30 UTC.
+This conservative window is configurable under `[sessions]`. It does not close positions or disable position
+management, and it does not apply to the `crypto` group. Broker trading sessions remain authoritative: a symbol
+can still be unavailable outside this window because of holidays, daily breaks, or broker-specific hours.
 
 The conservative DEMO defaults are 0.10% risk per trade, 0.50% maximum simultaneous risk, 25% maximum
 deposit load, two positions, and 0.50% total risk for the USD group. The daily gate reserves current open risk
