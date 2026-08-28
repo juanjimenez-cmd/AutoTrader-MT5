@@ -1,5 +1,6 @@
 [bot]
-symbols = ["EURUSD", "GBPUSD", "USDJPY", "XAUUSD", "NASDAQ", "SP500", "BTCUSD", "ETHUSD"]
+# GBPUSD and USDJPY are temporarily disabled after the initial DEMO review.
+symbols = ["EURUSD", "XAUUSD", "NASDAQ", "SP500", "BTCUSD", "ETHUSD"]
 timeframes = ["M5", "M15"]
 min_score = 65
 scan_interval_seconds = 60
@@ -16,15 +17,16 @@ bridge_host = "127.0.0.1"
 bridge_port = 18813
 
 [risk]
-default_risk_percent = 0.50
+default_risk_percent = 0.10
 daily_loss_limit_percent = 2.0
-max_simultaneous_risk_percent = 3.0
-max_positions = 5
+max_simultaneous_risk_percent = 0.50
+max_deposit_load_percent = 25.0
+max_positions = 2
 
 [risk.max_group_risk_percent]
-usd = 1.50
-us_indices = 1.00
-crypto = 1.00
+usd = 0.50
+us_indices = 0.40
+crypto = 0.30
 
 [management]
 breakeven_at_r = 1.0
@@ -32,49 +34,49 @@ trailing_start_at_r = 1.5
 trailing_atr_multiplier = 1.25
 
 [profiles.EURUSD]
-risk_percent = 0.50
+risk_percent = 0.10
 atr_stop_multiplier = 1.50
 reward_risk = 2.0
 group = "usd"
 
 [profiles.GBPUSD]
-risk_percent = 0.50
+risk_percent = 0.10
 atr_stop_multiplier = 1.60
 reward_risk = 2.0
 group = "usd"
 
 [profiles.USDJPY]
-risk_percent = 0.50
+risk_percent = 0.10
 atr_stop_multiplier = 1.50
 reward_risk = 2.0
 group = "usd"
 
 [profiles.XAUUSD]
-risk_percent = 0.40
+risk_percent = 0.10
 atr_stop_multiplier = 2.00
 reward_risk = 2.0
 group = "usd"
 
 [profiles.NASDAQ]
-risk_percent = 0.40
+risk_percent = 0.10
 atr_stop_multiplier = 2.00
 reward_risk = 2.0
 group = "us_indices"
 
 [profiles.SP500]
-risk_percent = 0.40
+risk_percent = 0.10
 atr_stop_multiplier = 1.80
 reward_risk = 2.0
 group = "us_indices"
 
 [profiles.BTCUSD]
-risk_percent = 0.30
+risk_percent = 0.10
 atr_stop_multiplier = 2.50
 reward_risk = 2.0
 group = "crypto"
 
 [profiles.ETHUSD]
-risk_percent = 0.30
+risk_percent = 0.10
 atr_stop_multiplier = 2.50
 reward_risk = 2.0
 group = "crypto"

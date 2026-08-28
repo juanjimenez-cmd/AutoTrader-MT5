@@ -15,6 +15,15 @@ class ConfigAndSymbolTests(unittest.TestCase):
         self.assertEqual(config.mt5.backend, "auto")
         self.assertEqual(config.mt5.bridge_port, 18813)
 
+    def test_conservative_demo_risk_defaults(self):
+        config = test_config()
+        self.assertEqual(config.risk.default_risk_percent, 0.10)
+        self.assertEqual(config.risk.max_deposit_load_percent, 25.0)
+        self.assertEqual(config.risk.max_positions, 2)
+        self.assertEqual(config.risk.max_group_risk_percent["usd"], 0.50)
+        self.assertNotIn("GBPUSD", config.symbols)
+        self.assertNotIn("USDJPY", config.symbols)
+
     def test_resolves_common_broker_names(self):
         config = test_config()
         resolver = SymbolResolver(config.aliases)

@@ -32,7 +32,7 @@ DEFAULT_GROUPS = {
 
 @dataclass(frozen=True, slots=True)
 class AssetProfile:
-    risk_percent: float = 0.50
+    risk_percent: float = 0.10
     atr_stop_multiplier: float = 1.5
     reward_risk: float = 2.0
     group: str = "usd"
@@ -40,12 +40,13 @@ class AssetProfile:
 
 @dataclass(frozen=True, slots=True)
 class RiskConfig:
-    default_risk_percent: float = 0.50
+    default_risk_percent: float = 0.10
     daily_loss_limit_percent: float = 2.0
-    max_simultaneous_risk_percent: float = 3.0
-    max_positions: int = 5
+    max_simultaneous_risk_percent: float = 0.50
+    max_deposit_load_percent: float = 25.0
+    max_positions: int = 2
     max_group_risk_percent: dict[str, float] = field(
-        default_factory=lambda: {"usd": 1.5, "us_indices": 1.0, "crypto": 1.0}
+        default_factory=lambda: {"usd": 0.5, "us_indices": 0.4, "crypto": 0.3}
     )
 
 
@@ -95,6 +96,8 @@ class AppConfig:
             raise ValueError("v1 supports only M5 and M15")
         if self.risk.daily_loss_limit_percent <= 0 or self.risk.max_positions <= 0:
             raise ValueError("risk limits must be positive")
+        if not 0 < self.risk.max_deposit_load_percent <= 100:
+            raise ValueError("max_deposit_load_percent must be between 0 and 100")
 
     def profile_for(self, symbol: str) -> AssetProfile:
         return self.profiles.get(
@@ -121,14 +124,15 @@ def load_config(path: str | Path) -> AppConfig:
     aliases_raw = raw.get("aliases", {})
 
     risk = RiskConfig(
-        default_risk_percent=float(risk_raw.get("default_risk_percent", 0.50)),
+        default_risk_percent=float(risk_raw.get("default_risk_percent", 0.10)),
         daily_loss_limit_percent=float(risk_raw.get("daily_loss_limit_percent", 2.0)),
-        max_simultaneous_risk_percent=float(risk_raw.get("max_simultaneous_risk_percent", 3.0)),
-        max_positions=int(risk_raw.get("max_positions", 5)),
+        max_simultaneous_risk_percent=float(risk_raw.get("max_simultaneous_risk_percent", 0.50)),
+        max_deposit_load_percent=float(risk_raw.get("max_deposit_load_percent", 25.0)),
+        max_positions=int(risk_raw.get("max_positions", 2)),
         max_group_risk_percent={
             str(k): float(v)
             for k, v in risk_raw.get(
-                "max_group_risk_percent", {"usd": 1.5, "us_indices": 1.0, "crypto": 1.0}
+                "max_group_risk_percent", {"usd": 0.5, "us_indices": 0.4, "crypto": 0.3}
             ).items()
         },
     )

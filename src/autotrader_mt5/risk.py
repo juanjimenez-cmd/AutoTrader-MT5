@@ -56,6 +56,13 @@ class RiskManager:
         profile = self.config.profile_for(signal.canonical_symbol)
         requested = profile.risk_percent
         simultaneous = sum(max(0.0, position.risk_percent) for position in positions)
+        prospective_daily_risk = daily_loss + simultaneous + requested
+        if prospective_daily_risk > self.config.risk.daily_loss_limit_percent + 1e-9:
+            return RiskDecision(
+                False,
+                "daily loss budget exceeded "
+                f"({daily_loss:.2f}% loss + {simultaneous:.2f}% open + {requested:.2f}% new)",
+            )
         if simultaneous + requested > self.config.risk.max_simultaneous_risk_percent + 1e-9:
             return RiskDecision(False, "maximum simultaneous risk exceeded")
         group_risk = sum(position.risk_percent for position in positions if position.group == profile.group)
@@ -65,3 +72,15 @@ class RiskManager:
         if group_risk + requested > group_limit + 1e-9:
             return RiskDecision(False, f"{profile.group} correlation-group limit exceeded")
         return RiskDecision(True, "approved", requested, account.equity * requested / 100.0)
+
+    def evaluate_deposit_load(self, account: AccountSnapshot, projected_margin: float) -> RiskDecision:
+        if account.equity <= 0:
+            return RiskDecision(False, "account equity must be positive")
+        projected_load = max(0.0, projected_margin) / account.equity * 100.0
+        if projected_load > self.config.risk.max_deposit_load_percent + 1e-9:
+            return RiskDecision(
+                False,
+                f"projected deposit load {projected_load:.2f}% exceeds "
+                f"{self.config.risk.max_deposit_load_percent:.2f}%",
+            )
+        return RiskDecision(True, f"projected deposit load {projected_load:.2f}% approved")

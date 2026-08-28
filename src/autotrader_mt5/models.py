@@ -60,6 +60,7 @@ class AccountSnapshot:
     currency: str = "USD"
     day_start_balance: float | None = None
     daily_pnl: float | None = None
+    margin: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,6 +72,10 @@ class SymbolSpec:
     volume_max: float
     volume_step: float
     filling_mode: int = 0
+    trade_mode: int = 4
+    stops_level: int = 0
+    freeze_level: int = 0
+    tick_size: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)

@@ -28,6 +28,14 @@ def _field(item: Any, name: str, default: Any = None) -> Any:
         return getattr(item, name, default)
 
 
+def _round_down(value: float, increment: float, digits: int) -> float:
+    return round(math.floor((value + 1e-12) / increment) * increment, digits)
+
+
+def _round_up(value: float, increment: float, digits: int) -> float:
+    return round(math.ceil((value - 1e-12) / increment) * increment, digits)
+
+
 class MT5Broker:
     def __init__(self, config: AppConfig, runtime: MT5Runtime | None = None):
         self.config = config
@@ -125,6 +133,7 @@ class MT5Broker:
             currency=str(_field(info, "currency", "")),
             day_start_balance=balance - realized,
             daily_pnl=realized + (equity - balance),
+            margin=float(_field(info, "margin", 0.0)),
         )
 
     async def symbol_spec(self, symbol: str) -> SymbolSpec:
@@ -139,7 +148,68 @@ class MT5Broker:
             volume_max=float(_field(info, "volume_max")),
             volume_step=float(_field(info, "volume_step")),
             filling_mode=int(_field(info, "filling_mode")),
+            trade_mode=int(_field(info, "trade_mode", self.runtime.constant("SYMBOL_TRADE_MODE_FULL", 4))),
+            stops_level=int(_field(info, "trade_stops_level", 0)),
+            freeze_level=int(_field(info, "trade_freeze_level", 0)),
+            tick_size=float(_field(info, "trade_tick_size", _field(info, "point", 0.0))),
         )
+
+    async def validate_symbol(self, symbol: str, direction: Direction | None = None) -> tuple[bool, str]:
+        spec = await self.symbol_spec(symbol)
+        disabled = self.runtime.constant("SYMBOL_TRADE_MODE_DISABLED", 0)
+        long_only = self.runtime.constant("SYMBOL_TRADE_MODE_LONGONLY", 1)
+        short_only = self.runtime.constant("SYMBOL_TRADE_MODE_SHORTONLY", 2)
+        close_only = self.runtime.constant("SYMBOL_TRADE_MODE_CLOSEONLY", 3)
+        if spec.trade_mode in {disabled, close_only}:
+            return False, f"{symbol} is not open for new trades (trade_mode={spec.trade_mode})"
+        if direction is Direction.LONG and spec.trade_mode == short_only:
+            return False, f"{symbol} allows short positions only"
+        if direction is Direction.SHORT and spec.trade_mode == long_only:
+            return False, f"{symbol} allows long positions only"
+        if not await self._call("symbol_select", symbol, True):
+            return False, f"broker refused to select {symbol} in Market Watch"
+        return True, "tradable"
+
+    async def prepare_order_levels(
+        self, symbol: str, direction: Direction, stop_loss: float, take_profit: float, reward_risk: float
+    ) -> tuple[float, float, float]:
+        allowed, reason = await self.validate_symbol(symbol, direction)
+        if not allowed:
+            raise RuntimeError(reason)
+        spec = await self.symbol_spec(symbol)
+        tick = await self._call("symbol_info_tick", symbol)
+        if tick is None:
+            raise RuntimeError(f"No current tick for {symbol}")
+        price = float(_field(tick, "ask") if direction is Direction.LONG else _field(tick, "bid"))
+        increment = spec.tick_size if spec.tick_size > 0 else spec.point
+        if increment <= 0 or spec.point <= 0:
+            raise RuntimeError(f"Invalid price increment for {symbol}")
+        if reward_risk <= 0:
+            raise RuntimeError("reward/risk ratio must be positive")
+        stale = (direction is Direction.LONG and not stop_loss < price < take_profit) or (
+            direction is Direction.SHORT and not take_profit < price < stop_loss
+        )
+        if stale:
+            raise RuntimeError(f"Signal levels for {symbol} are stale at current price {price}")
+        # Two extra points protect against a small quote move between preparation and order_check.
+        minimum_distance = max(spec.stops_level, 0) * spec.point + 2 * spec.point
+        if direction is Direction.LONG:
+            stop_loss = _round_down(min(stop_loss, price - minimum_distance), increment, spec.digits)
+            risk_distance = price - stop_loss
+            take_profit = _round_up(
+                max(take_profit, price + minimum_distance, price + reward_risk * risk_distance),
+                increment,
+                spec.digits,
+            )
+        else:
+            stop_loss = _round_up(max(stop_loss, price + minimum_distance), increment, spec.digits)
+            risk_distance = stop_loss - price
+            take_profit = _round_down(
+                min(take_profit, price - minimum_distance, price - reward_risk * risk_distance),
+                increment,
+                spec.digits,
+            )
+        return round(price, spec.digits), stop_loss, take_profit
 
     async def positions(self) -> tuple[Position, ...]:
         raw_positions = await self._call("positions_get") or ()
@@ -212,6 +282,12 @@ class MT5Broker:
         precision = max(0, -int(math.floor(math.log10(spec.volume_step)))) if spec.volume_step < 1 else 0
         return round(volume, precision)
 
+    async def margin_required(self, symbol: str, direction: Direction, volume: float, price: float) -> float:
+        margin = await self._call("order_calc_margin", self._order_type(direction), symbol, volume, price)
+        if margin is None or float(margin) < 0:
+            raise RuntimeError(f"Cannot calculate required margin for {symbol}")
+        return float(margin)
+
     def _filling(self, filling_mode: int) -> int:
         if filling_mode & 2:
             return self.runtime.constant("ORDER_FILLING_IOC")
@@ -221,18 +297,17 @@ class MT5Broker:
 
     async def submit(self, request: OrderRequest) -> OrderResult:
         await self.account()
+        allowed, reason = await self.validate_symbol(request.symbol, request.direction)
+        if not allowed:
+            return OrderResult(False, message=f"preflight failed: {reason}")
         spec = await self.symbol_spec(request.symbol)
-        tick = await self._call("symbol_info_tick", request.symbol)
-        if tick is None:
-            return OrderResult(False, message="No current tick")
         order_type = self._order_type(request.direction)
-        price = float(_field(tick, "ask") if request.direction is Direction.LONG else _field(tick, "bid"))
         payload = {
             "action": self.runtime.constant("TRADE_ACTION_DEAL"),
             "symbol": request.symbol,
             "volume": request.volume,
             "type": order_type,
-            "price": round(price, spec.digits),
+            "price": round(request.price, spec.digits),
             "sl": round(request.stop_loss, spec.digits),
             "tp": round(request.take_profit, spec.digits),
             "deviation": 20,

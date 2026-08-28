@@ -17,7 +17,7 @@ and checks again immediately before order submission or stop modification. Never
 - `symbols.py`: exact/prefix/suffix alias resolution for broker-specific names.
 - `strategies/`: independent trend, breakout, momentum, and mean-reversion votes.
 - `signals.py`: shared M5/M15 ensemble and normalized 0-100 score.
-- `risk.py`: daily loss, position, portfolio-risk, and correlation-group gates.
+- `risk.py`: prospective daily loss, margin load, position, portfolio-risk, and correlation-group gates.
 - `engine.py`: concurrent market-data scanner with sequential risk-aware execution.
 - `management.py`: breakeven and ATR trailing stops, restricted to this bot's magic number.
 - `mt5_runtime.py`: platform selector for official Windows MT5 or the local macOS bridge.
@@ -110,7 +110,8 @@ Then inspect `logs/events.jsonl` or `logs/autotrader.sqlite3`. To run continuous
 autotrader-mt5 live --config configs/autotrader.toml
 ```
 
-Stop with `Ctrl+C`. Missing broker instruments are logged and skipped; the bot stops if none resolve.
+Stop with `Ctrl+C`. Missing or non-tradable broker instruments are logged and skipped before scanning; the bot
+stops if none remain.
 
 ## Backtesting
 
@@ -132,10 +133,34 @@ slippage, swaps, partial fills, news gaps, or broker latency. Add these before u
 
 ## Configuration
 
-`configs/autotrader.toml` contains the `auto` platform transport, macOS bridge endpoint, all v1 markets,
-M5/M15 timeframes, minimum score, scan cadence, asset risk,
-ATR stops, reward/risk ratios, daily loss, total exposure, maximum positions, USD/index/crypto group limits,
-breakeven, trailing, and broker aliases. Percentages are percentage points: `0.50` means 0.50% of equity.
+`configs/autotrader.toml` contains the `auto` platform transport, macOS bridge endpoint, v1 market profiles,
+enabled markets, M5/M15 timeframes, minimum score, scan cadence, asset risk, ATR stops, reward/risk ratios,
+daily loss, total exposure, maximum deposit load, maximum positions, USD/index/crypto group limits, breakeven,
+trailing, and broker aliases. Percentages are percentage points: `0.10` means 0.10% of equity.
+
+The conservative DEMO defaults are 0.10% risk per trade, 0.50% maximum simultaneous risk, 25% maximum
+deposit load, two positions, and 0.50% total risk for the USD group. The daily gate reserves current open risk
+and the proposed new risk before admitting an order, so a new position cannot intentionally overshoot the 2%
+daily budget. Before sizing, prices and mandatory SL/TP levels are aligned to the broker tick size and minimum
+stop distance. Required margin is calculated with MetaTrader and the projected deposit load is rejected before
+`order_send` when it exceeds the configured cap. If the broker still responds `Trade disabled`, that instrument
+is blocked until the bot restarts instead of being retried every minute.
+
+GBPUSD and USDJPY are temporarily absent from `bot.symbols` after the initial DEMO report. Their profiles and
+aliases remain available for controlled backtests and can be re-enabled only after review.
+
+## DEMO promotion criteria
+
+Do not relax the safety defaults until a comparable DEMO sample contains at least 100–200 closed trades and
+meets all of these operational gates:
+
+- profit factor above 1.20;
+- maximum deposit load at or below 25%;
+- no daily loss above 2%;
+- no `No money`, `Invalid stops`, or `Trade disabled` order-check rejections;
+- drawdown and symbol-level results reviewed separately, with no single instrument dominating portfolio loss.
+
+These are validation gates, not a profitability guarantee, and v1 remains technically restricted to DEMO.
 
 The score is based on vote conviction, agreement, and strategy/timeframe coverage. M15 and trend votes receive
 slightly higher weights; mean reversion receives a lower weight because it naturally conflicts with trend

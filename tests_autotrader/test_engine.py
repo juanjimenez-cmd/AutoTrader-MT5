@@ -22,3 +22,25 @@ class EngineTests(unittest.IsolatedAsyncioTestCase):
         self.assertGreaterEqual(len(broker.orders), 1)
         self.assertTrue(all(order.stop_loss > 0 and order.take_profit > 0 for order in broker.orders))
         self.assertFalse(broker.connected)
+
+    async def test_disabled_broker_symbol_is_removed_before_scanning(self):
+        broker = FakeBroker()
+        broker.disabled_symbols.add("USTEC.a")
+        engine = AutoTrader(self.config, broker)
+        await engine.run(once=True)
+        self.assertEqual(engine.resolved_symbols, {"EURUSD": "EURUSD.a"})
+        self.assertTrue(all(order.canonical_symbol == "EURUSD" for order in broker.orders))
+
+    async def test_trade_disabled_order_result_blocks_retries_until_restart(self):
+        config = replace(self.config, symbols=("EURUSD",))
+        broker = FakeBroker()
+        broker.submit_rejection = "order_check failed: Trade disabled"
+        engine = AutoTrader(config, broker)
+        await engine.initialize()
+        await engine.scan_cycle()
+        first_attempts = len(broker.orders)
+        await engine.scan_cycle()
+        await broker.close()
+        self.assertGreater(first_attempts, 0)
+        self.assertEqual(len(broker.orders), first_attempts)
+        self.assertIn("EURUSD", engine.execution_blocked_symbols)

@@ -5,6 +5,7 @@ from dataclasses import replace
 from types import SimpleNamespace
 import unittest
 
+from autotrader_mt5.models import Direction
 from autotrader_mt5.mt5_adapter import DemoSafetyError, MT5Broker
 from autotrader_mt5.mt5_runtime import MT5Runtime
 from tests_autotrader.helpers import ROOT, test_config
@@ -36,11 +37,19 @@ class FakeNativeAPI:
 class FakeBrokerRuntime:
     def __init__(self, trade_mode=0):
         self.trade_mode = trade_mode
+        self.symbol_trade_mode = 4
         self.connected = False
         self.closed = False
         self.constants = {
             "ACCOUNT_TRADE_MODE_DEMO": 0,
             "TIMEFRAME_M5": 5,
+            "SYMBOL_TRADE_MODE_DISABLED": 0,
+            "SYMBOL_TRADE_MODE_LONGONLY": 1,
+            "SYMBOL_TRADE_MODE_SHORTONLY": 2,
+            "SYMBOL_TRADE_MODE_CLOSEONLY": 3,
+            "SYMBOL_TRADE_MODE_FULL": 4,
+            "ORDER_TYPE_BUY": 0,
+            "ORDER_TYPE_SELL": 1,
         }
 
     def connect(self, credentials):
@@ -66,6 +75,16 @@ class FakeBrokerRuntime:
                 {"time": 1, "open": 10, "high": 12, "low": 9, "close": 11, "tick_volume": 100},
                 SimpleNamespace(time=2, open=11, high=13, low=10, close=12, tick_volume=110),
             ]
+        if name == "symbol_info":
+            return SimpleNamespace(
+                name=args[0], digits=5, point=0.00001, volume_min=0.01, volume_max=100.0,
+                volume_step=0.01, filling_mode=1, trade_mode=self.symbol_trade_mode,
+                trade_stops_level=20, trade_freeze_level=0, trade_tick_size=0.00001,
+            )
+        if name == "symbol_info_tick":
+            return SimpleNamespace(ask=1.10020, bid=1.10000)
+        if name == "order_calc_margin":
+            return 250.0
         raise AssertionError(name)
 
 
@@ -142,6 +161,29 @@ class PlatformRuntimeTests(unittest.TestCase):
         with self.assertRaisesRegex(DemoSafetyError, "DEMO"):
             asyncio.run(broker.connect())
         self.assertTrue(runtime.closed)
+
+    def test_symbol_preflight_rejects_disabled_markets(self):
+        runtime = FakeBrokerRuntime()
+        runtime.symbol_trade_mode = 0
+        broker = MT5Broker(self.config_with_test_credentials(), runtime=runtime)
+        allowed, reason = asyncio.run(broker.validate_symbol("EURUSD"))
+        self.assertFalse(allowed)
+        self.assertIn("not open for new trades", reason)
+
+    def test_order_levels_respect_broker_stop_distance_and_margin_is_calculated(self):
+        runtime = FakeBrokerRuntime()
+        broker = MT5Broker(self.config_with_test_credentials(), runtime=runtime)
+
+        async def exercise():
+            levels = await broker.prepare_order_levels("EURUSD", Direction.LONG, 1.10010, 1.10030, 2.0)
+            margin = await broker.margin_required("EURUSD", Direction.LONG, 0.10, levels[0])
+            return levels, margin
+
+        (price, stop_loss, take_profit), margin = asyncio.run(exercise())
+        self.assertLessEqual(stop_loss, round(price - 0.00022, 5))
+        self.assertGreaterEqual(take_profit, round(price + 0.00022, 5))
+        self.assertGreaterEqual(take_profit - price, 2 * (price - stop_loss) - 1e-9)
+        self.assertEqual(margin, 250.0)
 
 
 if __name__ == "__main__":

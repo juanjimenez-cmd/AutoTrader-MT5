@@ -31,6 +31,8 @@ class FakeBroker:
         self.mapping = {}
         self.orders: list[OrderRequest] = []
         self._positions: tuple[Position, ...] = ()
+        self.disabled_symbols: set[str] = set()
+        self.submit_rejection: str | None = None
 
     async def connect(self): self.connected = True
     async def close(self): self.connected = False
@@ -42,8 +44,16 @@ class FakeBroker:
         data = rising_candles(max(count, 140))
         return data[-count:]
     async def symbol_spec(self, symbol): return SymbolSpec(symbol, 2, 0.01, 0.01, 100, 0.01)
+    async def validate_symbol(self, symbol, direction=None):
+        return (False, "trade disabled") if symbol in self.disabled_symbols else (True, "tradable")
+    async def prepare_order_levels(self, symbol, direction, stop_loss, take_profit, reward_risk):
+        entry = (take_profit + reward_risk * stop_loss) / (reward_risk + 1)
+        return entry, stop_loss, take_profit
     async def volume_for_risk(self, symbol, direction, entry, stop_loss, risk_amount): return 0.10
+    async def margin_required(self, symbol, direction, volume, price): return 100.0
     async def submit(self, request):
         self.orders.append(request)
+        if self.submit_rejection:
+            return OrderResult(False, message=self.submit_rejection)
         return OrderResult(True, 1000 + len(self.orders), "accepted")
     async def update_stops(self, ticket, symbol, stop_loss, take_profit): return OrderResult(True, ticket, "updated")
