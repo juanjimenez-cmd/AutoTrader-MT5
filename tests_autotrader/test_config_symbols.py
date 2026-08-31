@@ -26,8 +26,8 @@ class ConfigAndSymbolTests(unittest.TestCase):
         self.assertEqual(config.sessions.sunday_entry_resume_utc, "22:30")
         self.assertEqual(config.market_data.max_tick_age_seconds, 120)
         self.assertEqual(config.market_data.bridge_server_timezone, "Europe/Helsinki")
-        self.assertNotIn("GBPUSD", config.symbols)
-        self.assertNotIn("USDJPY", config.symbols)
+        self.assertIn("GBPUSD", config.symbols)
+        self.assertIn("USDJPY", config.symbols)
         self.assertNotIn("BTCUSD", config.symbols)
         self.assertNotIn("ETHUSD", config.symbols)
 

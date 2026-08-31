@@ -29,7 +29,7 @@ DEFAULT_GROUPS = {
     "ETHUSD": "crypto",
 }
 
-DEFAULT_ACTIVE_SYMBOLS = ("EURUSD", "XAUUSD", "NASDAQ", "SP500")
+DEFAULT_ACTIVE_SYMBOLS = ("EURUSD", "GBPUSD", "USDJPY", "XAUUSD", "NASDAQ", "SP500")
 
 
 @dataclass(frozen=True, slots=True)
