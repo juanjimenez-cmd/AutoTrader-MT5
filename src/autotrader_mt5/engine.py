@@ -52,7 +52,10 @@ class AutoTrader:
         tradable: dict[str, str] = {}
         for canonical, broker_symbol in resolved.items():
             try:
-                allowed, reason = await self.broker.validate_symbol(broker_symbol)
+                allowed, reason = await self.broker.validate_symbol(
+                    broker_symbol,
+                    canonical_symbol=canonical,
+                )
             except Exception as error:
                 allowed, reason = False, f"symbol preflight failed: {error}"
             if allowed:

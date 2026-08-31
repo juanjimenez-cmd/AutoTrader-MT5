@@ -53,7 +53,7 @@ class FakeBroker:
         )
         return data[-count:]
     async def symbol_spec(self, symbol): return SymbolSpec(symbol, 2, 0.01, 0.01, 100, 0.01)
-    async def validate_symbol(self, symbol, direction=None):
+    async def validate_symbol(self, symbol, direction=None, canonical_symbol=None):
         return (False, "trade disabled") if symbol in self.disabled_symbols else (True, "tradable")
     async def prepare_order_levels(self, symbol, direction, stop_loss, take_profit, reward_risk):
         entry = (take_profit + reward_risk * stop_loss) / (reward_risk + 1)

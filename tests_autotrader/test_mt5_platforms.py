@@ -39,6 +39,10 @@ class FakeBrokerRuntime:
         self.backend = "native"
         self.trade_mode = trade_mode
         self.symbol_trade_mode = 4
+        self.symbol_description = "Euro vs US Dollar"
+        self.symbol_path = "Forex\\EURUSD"
+        self.symbol_currency_base = "EUR"
+        self.symbol_currency_profit = "USD"
         self.connected = False
         self.closed = False
         self.constants = {
@@ -81,6 +85,8 @@ class FakeBrokerRuntime:
                 name=args[0], digits=5, point=0.00001, volume_min=0.01, volume_max=100.0,
                 volume_step=0.01, filling_mode=1, trade_mode=self.symbol_trade_mode,
                 trade_stops_level=20, trade_freeze_level=0, trade_tick_size=0.00001,
+                description=self.symbol_description, path=self.symbol_path,
+                currency_base=self.symbol_currency_base, currency_profit=self.symbol_currency_profit,
             )
         if name == "symbol_info_tick":
             return SimpleNamespace(ask=1.10020, bid=1.10000, time=1_788_149_450)
@@ -170,6 +176,29 @@ class PlatformRuntimeTests(unittest.TestCase):
         allowed, reason = asyncio.run(broker.validate_symbol("EURUSD"))
         self.assertFalse(allowed)
         self.assertIn("not open for new trades", reason)
+
+    def test_xauusd_preflight_rejects_ambiguous_gold_stock(self):
+        runtime = FakeBrokerRuntime()
+        runtime.symbol_description = "Barrick Gold Corporation (BC)"
+        runtime.symbol_path = "Nasdaq\\Stock\\GOLD"
+        runtime.symbol_currency_base = "USD"
+        broker = MT5Broker(self.config_with_test_credentials(), runtime=runtime)
+        allowed, reason = asyncio.run(
+            broker.validate_symbol("GOLD", canonical_symbol="XAUUSD")
+        )
+        self.assertFalse(allowed)
+        self.assertIn("does not match XAUUSD spot gold", reason)
+
+    def test_xauusd_preflight_accepts_spot_metal(self):
+        runtime = FakeBrokerRuntime()
+        runtime.symbol_description = "Gold vs US Dollar"
+        runtime.symbol_path = "Metals\\XAUUSD"
+        runtime.symbol_currency_base = "XAU"
+        broker = MT5Broker(self.config_with_test_credentials(), runtime=runtime)
+        allowed, _ = asyncio.run(
+            broker.validate_symbol("XAUUSD", canonical_symbol="XAUUSD")
+        )
+        self.assertTrue(allowed)
 
     def test_order_levels_respect_broker_stop_distance_and_margin_is_calculated(self):
         runtime = FakeBrokerRuntime()

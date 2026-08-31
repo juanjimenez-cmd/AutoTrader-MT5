@@ -177,7 +177,12 @@ class MT5Broker:
             tick_size=float(_field(info, "trade_tick_size", _field(info, "point", 0.0))),
         )
 
-    async def validate_symbol(self, symbol: str, direction: Direction | None = None) -> tuple[bool, str]:
+    async def validate_symbol(
+        self,
+        symbol: str,
+        direction: Direction | None = None,
+        canonical_symbol: str | None = None,
+    ) -> tuple[bool, str]:
         spec = await self.symbol_spec(symbol)
         disabled = self.runtime.constant("SYMBOL_TRADE_MODE_DISABLED", 0)
         long_only = self.runtime.constant("SYMBOL_TRADE_MODE_LONGONLY", 1)
@@ -189,6 +194,21 @@ class MT5Broker:
             return False, f"{symbol} allows short positions only"
         if direction is Direction.SHORT and spec.trade_mode == long_only:
             return False, f"{symbol} allows long positions only"
+        canonical = canonical_symbol or self._canonical_by_broker.get(symbol)
+        if canonical == "XAUUSD":
+            info = await self._call("symbol_info", symbol)
+            currency_base = str(_field(info, "currency_base", "")).upper()
+            currency_profit = str(_field(info, "currency_profit", "")).upper()
+            path = str(_field(info, "path", "")).upper()
+            description = str(_field(info, "description", "")).upper()
+            looks_like_spot_gold = currency_base == "XAU" or (
+                "METAL" in path and "GOLD" in description
+            )
+            if not looks_like_spot_gold or currency_profit != "USD":
+                return False, (
+                    f"{symbol} does not match XAUUSD spot gold "
+                    f"(base={currency_base or 'unknown'}, profit={currency_profit or 'unknown'}, path={path or 'unknown'})"
+                )
         if not await self._call("symbol_select", symbol, True):
             return False, f"broker refused to select {symbol} in Market Watch"
         return True, "tradable"

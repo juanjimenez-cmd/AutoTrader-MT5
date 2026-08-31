@@ -19,10 +19,10 @@ class SymbolResolver:
 
     def resolve(self, canonical: str, broker_symbols: list[str] | tuple[str, ...]) -> str:
         aliases = tuple(normalize_symbol(item) for item in self.aliases.get(canonical, (canonical,)))
-        candidates: list[tuple[int, int, str]] = []
+        candidates: list[tuple[int, int, int, str]] = []
         for broker_symbol in broker_symbols:
             normalized = normalize_symbol(broker_symbol)
-            for alias in aliases:
+            for alias_index, alias in enumerate(aliases):
                 if normalized == alias:
                     rank = 300
                 elif normalized.startswith(alias) or normalized.endswith(alias):
@@ -31,11 +31,13 @@ class SymbolResolver:
                     rank = 100 - abs(len(normalized) - len(alias))
                 else:
                     continue
-                candidates.append((rank, -len(broker_symbol), broker_symbol))
+                # Alias order is authoritative. The canonical name is first and
+                # must beat an exact but ambiguous secondary alias such as GOLD.
+                candidates.append((-alias_index, rank, -len(broker_symbol), broker_symbol))
         if not candidates:
             raise SymbolResolutionError(f"No broker symbol found for {canonical}; aliases={aliases}")
         candidates.sort(reverse=True)
-        return candidates[0][2]
+        return candidates[0][3]
 
     def resolve_all(
         self, canonical_symbols: tuple[str, ...], broker_symbols: list[str] | tuple[str, ...]

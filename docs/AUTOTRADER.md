@@ -139,6 +139,10 @@ daily loss, total exposure, maximum deposit load, maximum positions, USD/index/c
 trailing, weekend entry guard, and broker aliases. Percentages are percentage points: `0.10` means 0.10% of
 equity.
 
+Symbol aliases are ordered: the canonical instrument name is preferred over secondary broker aliases. XAUUSD
+also receives an identity preflight using the broker's base/profit currencies and category, preventing a stock
+such as Barrick Gold (`GOLD`) from being traded as spot gold.
+
 Before scoring, the live engine rejects a symbol when its latest tick is more than 120 seconds old or its last
 closed M5/M15 candle is older than two complete timeframe intervals plus the configured grace period. This
 prevents Friday candles or stopped quotes from becoming executable signals when a market is closed. Native

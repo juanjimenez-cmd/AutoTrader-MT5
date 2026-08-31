@@ -37,3 +37,8 @@ class ConfigAndSymbolTests(unittest.TestCase):
         self.assertEqual(resolver.resolve("XAUUSD", available), "GOLDmicro")
         self.assertEqual(resolver.resolve("NASDAQ", available), "USTEC.cash")
         self.assertEqual(resolver.resolve("SP500", available), "US500-USD")
+
+    def test_primary_xauusd_alias_beats_ambiguous_gold_stock(self):
+        resolver = SymbolResolver(test_config().aliases)
+        self.assertEqual(resolver.resolve("XAUUSD", ("GOLD", "XAUUSD")), "XAUUSD")
+        self.assertEqual(resolver.resolve("XAUUSD", ("GOLD", "XAUUSD.a")), "XAUUSD.a")
