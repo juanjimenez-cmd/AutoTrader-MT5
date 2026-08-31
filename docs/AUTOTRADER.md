@@ -163,8 +163,9 @@ stop distance. Required margin is calculated with MetaTrader and the projected d
 `order_send` when it exceeds the configured cap. If the broker still responds `Trade disabled`, that instrument
 is blocked until the bot restarts instead of being retried every minute.
 
-GBPUSD and USDJPY are temporarily absent from `bot.symbols` after the initial DEMO report. Their profiles and
-aliases remain available for controlled backtests and can be re-enabled only after review.
+GBPUSD and USDJPY are temporarily absent from `bot.symbols` after the initial DEMO report. BTCUSD and ETHUSD
+are also absent because MetaQuotes-Demo does not provide those instruments. Their profiles and aliases remain
+available for controlled backtests or a future compatible broker, and can be re-enabled only after review.
 
 ## DEMO promotion criteria
 

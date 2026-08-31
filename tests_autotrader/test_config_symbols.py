@@ -28,6 +28,8 @@ class ConfigAndSymbolTests(unittest.TestCase):
         self.assertEqual(config.market_data.bridge_server_timezone, "Europe/Helsinki")
         self.assertNotIn("GBPUSD", config.symbols)
         self.assertNotIn("USDJPY", config.symbols)
+        self.assertNotIn("BTCUSD", config.symbols)
+        self.assertNotIn("ETHUSD", config.symbols)
 
     def test_resolves_common_broker_names(self):
         config = test_config()

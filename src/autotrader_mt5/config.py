@@ -29,6 +29,8 @@ DEFAULT_GROUPS = {
     "ETHUSD": "crypto",
 }
 
+DEFAULT_ACTIVE_SYMBOLS = ("EURUSD", "XAUUSD", "NASDAQ", "SP500")
+
 
 @dataclass(frozen=True, slots=True)
 class AssetProfile:
@@ -201,7 +203,7 @@ def load_config(path: str | Path) -> AppConfig:
         bridge_port=int(mt5_raw.get("bridge_port", 18813)),
     )
     profiles: dict[str, AssetProfile] = {}
-    for symbol in bot.get("symbols", DEFAULT_ALIASES):
+    for symbol in bot.get("symbols", DEFAULT_ACTIVE_SYMBOLS):
         item = profiles_raw.get(symbol, {})
         profiles[symbol] = AssetProfile(
             risk_percent=float(item.get("risk_percent", risk.default_risk_percent)),
@@ -213,7 +215,7 @@ def load_config(path: str | Path) -> AppConfig:
     aliases.update({str(k): tuple(map(str, v)) for k, v in aliases_raw.items()})
     base = config_path.parent
     return AppConfig(
-        symbols=tuple(map(str, bot.get("symbols", DEFAULT_ALIASES.keys()))),
+        symbols=tuple(map(str, bot.get("symbols", DEFAULT_ACTIVE_SYMBOLS))),
         timeframes=tuple(map(str, bot.get("timeframes", ("M5", "M15")))),
         min_score=int(bot.get("min_score", 65)),
         scan_interval_seconds=int(bot.get("scan_interval_seconds", 60)),

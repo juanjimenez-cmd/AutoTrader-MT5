@@ -8,6 +8,7 @@
 - Normalize macOS bridge server timestamps to UTC without changing native Windows timestamps.
 - Reject stale ticks and closed candles before scoring or order preparation.
 - Prefer canonical aliases and reject equity symbols incorrectly resolved as XAUUSD spot gold.
+- Remove unavailable BTCUSD and ETHUSD from the MetaQuotes-Demo live scanner defaults.
 - Reduced the default and per-asset DEMO risk to 0.10%.
 - Added a 25% projected deposit-load cap using MetaTrader margin calculation before order submission.
 - Changed the daily-loss gate to reserve open and proposed risk before admitting a trade.

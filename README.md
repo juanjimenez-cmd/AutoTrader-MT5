@@ -6,7 +6,8 @@ It scans the enabled DEMO portfolio on M5/M15; resolves broker symbol
 suffixes/prefixes; combines trend, breakout, momentum, and mean-reversion strategies into a 0-100 score; and
 enforces mandatory SL/TP, prospective daily loss, simultaneous risk, correlated exposure, deposit-load, and
 position limits. GBPUSD and USDJPY remain available as profiles but are temporarily disabled in the default
-configuration after the first DEMO review. Live signals
+configuration after the first DEMO review. BTCUSD and ETHUSD are also inactive because MetaQuotes-Demo does
+not provide those instruments. Live signals
 and backtests share the same signal engine.
 
 **Version 1 refuses real-money accounts at multiple runtime boundaries.** It supports native Windows and

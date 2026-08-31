@@ -1,6 +1,7 @@
 [bot]
-# GBPUSD and USDJPY are temporarily disabled after the initial DEMO review.
-symbols = ["EURUSD", "XAUUSD", "NASDAQ", "SP500", "BTCUSD", "ETHUSD"]
+# GBPUSD and USDJPY are disabled after the initial DEMO review. BTCUSD and
+# ETHUSD are disabled because MetaQuotes-Demo does not provide those markets.
+symbols = ["EURUSD", "XAUUSD", "NASDAQ", "SP500"]
 timeframes = ["M5", "M15"]
 min_score = 65
 scan_interval_seconds = 60
