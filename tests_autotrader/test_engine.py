@@ -51,6 +51,7 @@ class EngineTests(unittest.IsolatedAsyncioTestCase):
         config = replace(self.config, symbols=("EURUSD",))
         broker = FakeBroker()
         friday_after_cutoff = lambda: datetime(2026, 8, 28, 20, 30, tzinfo=timezone.utc)
+        broker.tick_time_value = int(friday_after_cutoff().timestamp())
         engine = AutoTrader(config, broker, clock=friday_after_cutoff)
         await engine.run(once=True)
         self.assertEqual(broker.orders, [])
@@ -59,6 +60,23 @@ class EngineTests(unittest.IsolatedAsyncioTestCase):
         config = replace(self.config, symbols=("BTCUSD",))
         broker = FakeBroker()
         saturday = lambda: datetime(2026, 8, 29, 12, 0, tzinfo=timezone.utc)
+        broker.tick_time_value = int(saturday().timestamp())
         engine = AutoTrader(config, broker, clock=saturday)
         await engine.run(once=True)
         self.assertGreaterEqual(len(broker.orders), 1)
+
+    async def test_stale_tick_blocks_order_before_risk_evaluation(self):
+        config = replace(self.config, symbols=("EURUSD",))
+        broker = FakeBroker()
+        broker.tick_time_value -= self.config.market_data.max_tick_age_seconds + 1
+        engine = AutoTrader(config, broker, clock=self.clock)
+        await engine.run(once=True)
+        self.assertEqual(broker.orders, [])
+
+    async def test_stale_closed_candle_blocks_order(self):
+        config = replace(self.config, symbols=("EURUSD",))
+        broker = FakeBroker()
+        broker.candle_lag_seconds = 1_000
+        engine = AutoTrader(config, broker, clock=self.clock)
+        await engine.run(once=True)
+        self.assertEqual(broker.orders, [])

@@ -8,6 +8,7 @@ import json
 import math
 from pathlib import Path
 from typing import Any, Mapping
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .config import AppConfig
 from .models import AccountSnapshot, Candle, Direction, OrderRequest, OrderResult, Position, SymbolSpec
@@ -79,6 +80,28 @@ class MT5Broker:
         symbols = await self._call("symbols_get")
         return tuple(str(_field(item, "name", "")) for item in (symbols or ()) if _field(item, "name"))
 
+    def _timestamp_to_utc(self, value: int) -> int:
+        if self.runtime.backend != "bridge":
+            return value
+        try:
+            server_timezone = ZoneInfo(self.config.market_data.bridge_server_timezone)
+        except ZoneInfoNotFoundError as error:
+            raise RuntimeError(
+                "Unknown bridge server timezone "
+                f"{self.config.market_data.bridge_server_timezone!r}"
+            ) from error
+        # The macOS bridge serializes MT5 server wall-clock fields as though they
+        # were UTC. Reattach the configured server timezone, then convert to epoch UTC.
+        server_wall_clock = datetime.fromtimestamp(value, timezone.utc).replace(tzinfo=server_timezone)
+        return int(server_wall_clock.timestamp())
+
+    async def latest_tick_time(self, symbol: str) -> int:
+        tick = await self._call("symbol_info_tick", symbol)
+        raw_time = int(_field(tick, "time", 0)) if tick is not None else 0
+        if raw_time <= 0:
+            raise RuntimeError(f"No valid current tick time for {symbol}")
+        return self._timestamp_to_utc(raw_time)
+
     async def candles(self, symbol: str, timeframe: str, count: int) -> list[Candle]:
         timeframe_value = self.runtime.constant(f"TIMEFRAME_{timeframe}")
         if not await self._call("symbol_select", symbol, True):
@@ -88,7 +111,7 @@ class MT5Broker:
             raise RuntimeError(f"Insufficient {timeframe} candles for {symbol}: {0 if rates is None else len(rates)}")
         return [
             Candle(
-                time=int(_field(row, "time")),
+                time=self._timestamp_to_utc(int(_field(row, "time"))),
                 open=float(_field(row, "open")),
                 high=float(_field(row, "high")),
                 low=float(_field(row, "low")),

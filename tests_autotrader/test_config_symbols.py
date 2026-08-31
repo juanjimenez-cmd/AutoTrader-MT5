@@ -24,6 +24,8 @@ class ConfigAndSymbolTests(unittest.TestCase):
         self.assertTrue(config.sessions.weekend_guard_enabled)
         self.assertEqual(config.sessions.friday_entry_cutoff_utc, "20:30")
         self.assertEqual(config.sessions.sunday_entry_resume_utc, "22:30")
+        self.assertEqual(config.market_data.max_tick_age_seconds, 120)
+        self.assertEqual(config.market_data.bridge_server_timezone, "Europe/Helsinki")
         self.assertNotIn("GBPUSD", config.symbols)
         self.assertNotIn("USDJPY", config.symbols)
 

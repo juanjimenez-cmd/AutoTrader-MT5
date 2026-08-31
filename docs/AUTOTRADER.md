@@ -139,6 +139,13 @@ daily loss, total exposure, maximum deposit load, maximum positions, USD/index/c
 trailing, weekend entry guard, and broker aliases. Percentages are percentage points: `0.10` means 0.10% of
 equity.
 
+Before scoring, the live engine rejects a symbol when its latest tick is more than 120 seconds old or its last
+closed M5/M15 candle is older than two complete timeframe intervals plus the configured grace period. This
+prevents Friday candles or stopped quotes from becoming executable signals when a market is closed. Native
+Windows timestamps remain UTC. The macOS bridge exposes broker wall-clock timestamps, so
+`market_data.bridge_server_timezone` converts them to UTC; change this IANA timezone if the broker does not use
+the configured EET/EEST schedule.
+
 The weekend guard blocks new `usd` and `us_indices` positions from Friday 20:30 UTC until Sunday 22:30 UTC.
 This conservative window is configurable under `[sessions]`. It does not close positions or disable position
 management, and it does not apply to the `crypto` group. Broker trading sessions remain authoritative: a symbol

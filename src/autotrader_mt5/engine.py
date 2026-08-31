@@ -10,6 +10,7 @@ import logging
 from .broker import Broker
 from .config import AppConfig
 from .management import PositionManager
+from .market_data import MarketDataGuard
 from .models import OrderRequest, Position, ScoredSignal
 from .risk import RiskManager
 from .sessions import EntrySessionGuard
@@ -33,6 +34,7 @@ class AutoTrader:
         self.risk_manager = RiskManager(config)
         self.store = EventStore(config.log_directory)
         self.position_manager = PositionManager(config, broker, self.store)
+        self.market_data_guard = MarketDataGuard(config.market_data)
         self.session_guard = EntrySessionGuard(config.sessions)
         self.clock = clock or (lambda: datetime.now(timezone.utc))
         self.resolved_symbols: dict[str, str] = {}
@@ -79,6 +81,20 @@ class AutoTrader:
                     ),
                 )
             }
+            latest_tick_time = await self.broker.latest_tick_time(broker_symbol)
+            data_is_fresh, freshness_reason = self.market_data_guard.evaluate(
+                candle_sets,
+                latest_tick_time,
+                self.clock(),
+            )
+            if not data_is_fresh:
+                self.store.record(
+                    "market_data_rejection",
+                    {"reason": freshness_reason, "broker_symbol": broker_symbol},
+                    canonical,
+                )
+                logger.warning("Skipping %s: %s", canonical, freshness_reason)
+                return None
             profile = self.config.profile_for(canonical)
             signal = self.signal_engine.evaluate(
                 canonical,

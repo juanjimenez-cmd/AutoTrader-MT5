@@ -36,6 +36,7 @@ class FakeNativeAPI:
 
 class FakeBrokerRuntime:
     def __init__(self, trade_mode=0):
+        self.backend = "native"
         self.trade_mode = trade_mode
         self.symbol_trade_mode = 4
         self.connected = False
@@ -82,7 +83,7 @@ class FakeBrokerRuntime:
                 trade_stops_level=20, trade_freeze_level=0, trade_tick_size=0.00001,
             )
         if name == "symbol_info_tick":
-            return SimpleNamespace(ask=1.10020, bid=1.10000)
+            return SimpleNamespace(ask=1.10020, bid=1.10000, time=1_788_149_450)
         if name == "order_calc_margin":
             return 250.0
         raise AssertionError(name)
@@ -184,6 +185,18 @@ class PlatformRuntimeTests(unittest.TestCase):
         self.assertGreaterEqual(take_profit, round(price + 0.00022, 5))
         self.assertGreaterEqual(take_profit - price, 2 * (price - stop_loss) - 1e-9)
         self.assertEqual(margin, 250.0)
+
+    def test_native_tick_timestamp_remains_utc(self):
+        runtime = FakeBrokerRuntime()
+        broker = MT5Broker(self.config_with_test_credentials(), runtime=runtime)
+        self.assertEqual(asyncio.run(broker.latest_tick_time("EURUSD")), 1_788_149_450)
+
+    def test_bridge_server_wall_clock_is_normalized_to_utc(self):
+        runtime = FakeBrokerRuntime()
+        runtime.backend = "bridge"
+        broker = MT5Broker(self.config_with_test_credentials(), runtime=runtime)
+        # Europe/Helsinki is UTC+3 in August 2026.
+        self.assertEqual(asyncio.run(broker.latest_tick_time("EURUSD")), 1_788_138_650)
 
 
 if __name__ == "__main__":

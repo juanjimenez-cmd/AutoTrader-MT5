@@ -33,6 +33,14 @@ breakeven_at_r = 1.0
 trailing_start_at_r = 1.5
 trailing_atr_multiplier = 1.25
 
+[market_data]
+# MetaQuotes-Demo uses EET/EEST server wall-clock timestamps through the macOS bridge.
+# Native Windows MT5 timestamps remain UTC and do not use this conversion.
+bridge_server_timezone = "Europe/Helsinki"
+max_tick_age_seconds = 120
+closed_bar_grace_seconds = 90
+future_tolerance_seconds = 5
+
 [sessions]
 # Conservative UTC window. Existing positions are still managed, but no new
 # Forex, gold, or US-index positions are opened near the weekend closure.

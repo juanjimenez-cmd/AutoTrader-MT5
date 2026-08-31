@@ -58,6 +58,22 @@ class ManagementConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class MarketDataConfig:
+    bridge_server_timezone: str = "Europe/Helsinki"
+    max_tick_age_seconds: int = 120
+    closed_bar_grace_seconds: int = 90
+    future_tolerance_seconds: int = 5
+
+    def __post_init__(self) -> None:
+        if not self.bridge_server_timezone:
+            raise ValueError("market_data.bridge_server_timezone must not be empty")
+        if self.max_tick_age_seconds <= 0 or self.closed_bar_grace_seconds < 0:
+            raise ValueError("market-data freshness limits must be positive")
+        if self.future_tolerance_seconds < 0:
+            raise ValueError("market_data.future_tolerance_seconds must not be negative")
+
+
+@dataclass(frozen=True, slots=True)
 class SessionConfig:
     weekend_guard_enabled: bool = True
     friday_entry_cutoff_utc: str = "20:30"
@@ -105,6 +121,7 @@ class AppConfig:
     log_directory: Path
     risk: RiskConfig
     management: ManagementConfig
+    market_data: MarketDataConfig
     sessions: SessionConfig
     mt5: MT5ConnectionConfig
     profiles: dict[str, AssetProfile]
@@ -142,6 +159,7 @@ def load_config(path: str | Path) -> AppConfig:
     bot = raw.get("bot", {})
     risk_raw = raw.get("risk", {})
     management_raw = raw.get("management", {})
+    market_data_raw = raw.get("market_data", {})
     sessions_raw = raw.get("sessions", {})
     mt5_raw = raw.get("mt5", {})
     profiles_raw = raw.get("profiles", {})
@@ -164,6 +182,12 @@ def load_config(path: str | Path) -> AppConfig:
         breakeven_at_r=float(management_raw.get("breakeven_at_r", 1.0)),
         trailing_start_at_r=float(management_raw.get("trailing_start_at_r", 1.5)),
         trailing_atr_multiplier=float(management_raw.get("trailing_atr_multiplier", 1.25)),
+    )
+    market_data = MarketDataConfig(
+        bridge_server_timezone=str(market_data_raw.get("bridge_server_timezone", "Europe/Helsinki")),
+        max_tick_age_seconds=int(market_data_raw.get("max_tick_age_seconds", 120)),
+        closed_bar_grace_seconds=int(market_data_raw.get("closed_bar_grace_seconds", 90)),
+        future_tolerance_seconds=int(market_data_raw.get("future_tolerance_seconds", 5)),
     )
     sessions = SessionConfig(
         weekend_guard_enabled=bool(sessions_raw.get("weekend_guard_enabled", True)),
@@ -200,6 +224,7 @@ def load_config(path: str | Path) -> AppConfig:
         log_directory=_as_path(str(bot.get("log_directory", "logs")), base),
         risk=risk,
         management=management,
+        market_data=market_data,
         sessions=sessions,
         mt5=mt5,
         profiles=profiles,
