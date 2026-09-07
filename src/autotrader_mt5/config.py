@@ -75,6 +75,43 @@ class EntryControlConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class ExecutionConfig:
+    """Controls whether a validated signal can reach the MT5 order API."""
+
+    mode: str = "observation"
+
+    def __post_init__(self) -> None:
+        if self.mode not in {"observation", "demo"}:
+            raise ValueError("execution.mode must be observation or demo")
+
+
+@dataclass(frozen=True, slots=True)
+class BacktestCostConfig:
+    """EURUSD-style friction model used by the shared-signal backtest.
+
+    It is intentionally explicit: this is an estimate, not a replacement for
+    the broker's real-tick tester or a filled-order report.
+    """
+
+    spread_pips: float = 0.8
+    slippage_pips_per_side: float = 0.1
+    commission_per_lot_round_turn: float = 7.0
+    pip_size: float = 0.0001
+    contract_size: float = 100_000.0
+
+    def __post_init__(self) -> None:
+        values = (
+            self.spread_pips,
+            self.slippage_pips_per_side,
+            self.commission_per_lot_round_turn,
+            self.pip_size,
+            self.contract_size,
+        )
+        if any(value < 0 for value in values) or self.pip_size == 0 or self.contract_size == 0:
+            raise ValueError("backtest_costs must use non-negative costs and positive pip/contract sizes")
+
+
+@dataclass(frozen=True, slots=True)
 class MarketDataConfig:
     bridge_server_timezone: str = "Europe/Helsinki"
     max_tick_age_seconds: int = 120
@@ -165,6 +202,8 @@ class AppConfig:
     risk: RiskConfig
     management: ManagementConfig
     entry_controls: EntryControlConfig
+    execution: ExecutionConfig
+    backtest_costs: BacktestCostConfig
     market_data: MarketDataConfig
     sessions: SessionConfig
     mt5: MT5ConnectionConfig
@@ -206,6 +245,8 @@ def load_config(path: str | Path) -> AppConfig:
     risk_raw = raw.get("risk", {})
     management_raw = raw.get("management", {})
     entry_controls_raw = raw.get("entry_controls", {})
+    execution_raw = raw.get("execution", {})
+    backtest_costs_raw = raw.get("backtest_costs", {})
     market_data_raw = raw.get("market_data", {})
     sessions_raw = raw.get("sessions", {})
     mt5_raw = raw.get("mt5", {})
@@ -233,6 +274,16 @@ def load_config(path: str | Path) -> AppConfig:
     entry_controls = EntryControlConfig(
         cooldown_minutes=int(entry_controls_raw.get("cooldown_minutes", 90)),
         max_entries_per_symbol_day=int(entry_controls_raw.get("max_entries_per_symbol_day", 2)),
+    )
+    execution = ExecutionConfig(mode=str(execution_raw.get("mode", "observation")).lower())
+    backtest_costs = BacktestCostConfig(
+        spread_pips=float(backtest_costs_raw.get("spread_pips", 0.8)),
+        slippage_pips_per_side=float(backtest_costs_raw.get("slippage_pips_per_side", 0.1)),
+        commission_per_lot_round_turn=float(
+            backtest_costs_raw.get("commission_per_lot_round_turn", 7.0)
+        ),
+        pip_size=float(backtest_costs_raw.get("pip_size", 0.0001)),
+        contract_size=float(backtest_costs_raw.get("contract_size", 100_000.0)),
     )
     market_data = MarketDataConfig(
         bridge_server_timezone=str(market_data_raw.get("bridge_server_timezone", "Europe/Helsinki")),
@@ -288,6 +339,8 @@ def load_config(path: str | Path) -> AppConfig:
         risk=risk,
         management=management,
         entry_controls=entry_controls,
+        execution=execution,
+        backtest_costs=backtest_costs,
         market_data=market_data,
         sessions=sessions,
         mt5=mt5,
