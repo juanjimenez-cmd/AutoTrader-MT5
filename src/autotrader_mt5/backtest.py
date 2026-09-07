@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+from bisect import bisect_right
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 import json
@@ -47,10 +48,17 @@ class BacktestReport:
     def win_rate(self) -> float:
         return self.wins / len(self.trades) * 100 if self.trades else 0.0
 
+    @property
+    def profit_factor(self) -> float:
+        gross_profit = sum(trade.pnl for trade in self.trades if trade.pnl > 0)
+        gross_loss = abs(sum(trade.pnl for trade in self.trades if trade.pnl < 0))
+        return gross_profit / gross_loss if gross_loss else 0.0
+
     def to_json(self) -> str:
         body = asdict(self)
         body["wins"] = self.wins
         body["win_rate"] = self.win_rate
+        body["profit_factor"] = self.profit_factor
         return json.dumps(body, indent=2, sort_keys=True)
 
 
@@ -137,6 +145,10 @@ class Backtester:
         max_drawdown = 0.0
         active: dict | None = None
         trades: list[BacktestTrade] = []
+        last_entry_time: int | None = None
+        entries_by_utc_date: dict[object, int] = {}
+        m15_close_times = [item.time + 900 for item in m15_candles]
+        h1_close_times = [item.time + 3600 for item in h1_candles]
 
         for index in range(self.config.candle_count, len(m5_candles)):
             current = m5_candles[index]
@@ -173,17 +185,17 @@ class Backtester:
 
             m5_window = m5_candles[index - self.config.candle_count : index]
             # A derived M15 bar is usable only after all three M5 bars have closed.
-            m15_available = [item for item in m15_candles if item.time + 900 <= current.time]
-            h1_available = [item for item in h1_candles if item.time + 3600 <= current.time]
-            if len(m15_available) < 35 or len(h1_available) < 35:
+            m15_end = bisect_right(m15_close_times, current.time)
+            h1_end = bisect_right(h1_close_times, current.time)
+            if m15_end < 35 or h1_end < 35:
                 continue
             signal = self.signal_engine.evaluate(
                 canonical_symbol,
                 canonical_symbol,
                 {
                     "M5": m5_window,
-                    "M15": m15_available[-self.config.candle_count :],
-                    "H1": h1_available[-self.config.candle_count :],
+                    "M15": m15_candles[max(0, m15_end - self.config.candle_count) : m15_end],
+                    "H1": h1_candles[max(0, h1_end - self.config.candle_count) : h1_end],
                 },
                 profile.atr_stop_multiplier,
                 profile.reward_risk,
@@ -194,6 +206,13 @@ class Backtester:
                 profile.group, now, canonical_symbol=canonical_symbol
             )
             if not entry_allowed:
+                continue
+            if last_entry_time is not None and (
+                current.time - last_entry_time < self.config.entry_controls.cooldown_minutes * 60
+            ):
+                continue
+            utc_day = now.date()
+            if entries_by_utc_date.get(utc_day, 0) >= self.config.entry_controls.max_entries_per_symbol_day:
                 continue
             decision = self.risk_manager.evaluate(signal, account, (), now=now)
             if decision.allowed:
@@ -206,6 +225,8 @@ class Backtester:
                     "score": signal.score,
                     "risk_amount": decision.risk_amount,
                 }
+                last_entry_time = current.time
+                entries_by_utc_date[utc_day] = entries_by_utc_date.get(utc_day, 0) + 1
 
         if active is not None:
             final = m5_candles[-1]

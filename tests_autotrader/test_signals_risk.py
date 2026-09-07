@@ -21,6 +21,14 @@ class SignalAndRiskTests(unittest.TestCase):
         self.assertLess(self.signal.stop_loss, self.signal.entry)
         self.assertGreater(self.signal.take_profit, self.signal.entry)
 
+    def test_missing_h1_context_cannot_create_an_entry(self):
+        candles = rising_candles()
+        signal = SignalEngine().evaluate(
+            "EURUSD", "EURUSD.a", {"M5": candles, "M15": candles}, 1.5, 2.0
+        )
+        self.assertEqual(signal.direction, Direction.FLAT)
+        self.assertEqual(signal.score, 0)
+
     def test_real_account_is_rejected(self):
         decision = RiskManager(self.config).evaluate(
             self.signal, AccountSnapshot(10_000, 10_000, "Broker-Live", 2), ()
