@@ -12,6 +12,20 @@ magic_number = 26082601
 credentials_file = "../autotrader.credentials.json"
 log_directory = "../logs"
 
+[execution]
+# Safe default: record validated candidates but never create, close, or modify
+# a position in MetaTrader. Change only after the forward-validation gates pass.
+mode = "observation"
+
+[backtest_costs]
+# EURUSD estimate, in USD-account terms. Update these values from the broker's
+# actual spread/commission report before treating a test as a promotion result.
+spread_pips = 0.8
+slippage_pips_per_side = 0.1
+commission_per_lot_round_turn = 7.0
+pip_size = 0.0001
+contract_size = 100000
+
 [mt5]
 # auto selects the official native API on Windows and the local bridge on macOS.
 backend = "auto"
