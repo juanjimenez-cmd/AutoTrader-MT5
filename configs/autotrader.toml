@@ -49,9 +49,8 @@ friday_entry_cutoff_utc = "20:30"
 sunday_entry_resume_utc = "22:30"
 guarded_groups = ["usd", "us_indices"]
 
-# Quito is UTC-5 all year. EURUSD, GBPUSD and USDJPY use the liquid
-# London/New York overlap. The optional Tokyo USDJPY window is deliberately
-# not enabled until it has its own DEMO validation sample.
+# Quito is UTC-5 all year. EURUSD and GBPUSD use the liquid London/New York
+# overlap. USDJPY also receives a conservative evening window around Tokyo.
 [sessions.entry_schedules.EURUSD]
 timezone = "America/Guayaquil"
 windows = ["09:00-11:00"]
@@ -62,7 +61,7 @@ windows = ["09:00-11:00"]
 
 [sessions.entry_schedules.USDJPY]
 timezone = "America/Guayaquil"
-windows = ["09:00-11:00"]
+windows = ["09:00-11:00", "18:00-23:00"]
 
 # Gold is allowed around the London/New York crossover, when both major
 # venues contribute liquidity.

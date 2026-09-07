@@ -4,6 +4,7 @@
 
 - Restrict new DEMO entries to configurable liquidity windows in Quito or New York time; continue managing open
   positions outside those windows.
+- Enable the conservative 18:00–23:00 Quito USDJPY entry window for the Tokyo session.
 - Block new Forex, gold, and US-index entries during a configurable conservative weekend closure window.
 - Keep cryptocurrency entry handling separate from the weekend guard.
 - Add deterministic session-boundary and engine-level regression tests.

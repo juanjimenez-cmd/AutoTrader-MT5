@@ -26,6 +26,7 @@ class ConfigAndSymbolTests(unittest.TestCase):
         self.assertEqual(config.sessions.sunday_entry_resume_utc, "22:30")
         self.assertEqual(config.sessions.entry_schedules["EURUSD"].timezone, "America/Guayaquil")
         self.assertEqual(config.sessions.entry_schedules["EURUSD"].windows, ("09:00-11:00",))
+        self.assertEqual(config.sessions.entry_schedules["USDJPY"].windows, ("09:00-11:00", "18:00-23:00"))
         self.assertEqual(config.sessions.entry_schedules["NASDAQ"].timezone, "America/New_York")
         self.assertEqual(config.market_data.max_tick_age_seconds, 120)
         self.assertEqual(config.market_data.bridge_server_timezone, "Europe/Helsinki")

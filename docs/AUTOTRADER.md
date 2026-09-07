@@ -152,12 +152,11 @@ the configured EET/EEST schedule.
 
 The weekend guard blocks new `usd` and `us_indices` positions from Friday 20:30 UTC until Sunday 22:30 UTC.
 The configurable schedules in `[sessions.entry_schedules]` also block new entries outside the selected liquidity
-windows: EURUSD/GBPUSD/USDJPY use 09:00–11:00 in Quito, XAUUSD 08:30–11:30 in Quito, and US indices
-10:00–12:30 New York time (which follows U.S. daylight saving time). This does not close positions or disable
-position management; SL/TP, breakeven, and trailing management continue outside entry windows. The optional
-Tokyo USDJPY window is intentionally absent until it receives its own DEMO validation sample. Broker trading
-sessions remain authoritative: a symbol can still be unavailable because of holidays, daily breaks, or
-broker-specific hours.
+windows: EURUSD/GBPUSD use 09:00–11:00 in Quito, USDJPY uses 09:00–11:00 and 18:00–23:00 in Quito, XAUUSD
+uses 08:30–11:30 in Quito, and US indices use 10:00–12:30 New York time (which follows U.S. daylight saving
+time). This does not close positions or disable position management; SL/TP, breakeven, and trailing management
+continue outside entry windows. Broker trading sessions remain authoritative: a symbol can still be unavailable
+because of holidays, daily breaks, or broker-specific hours.
 
 The conservative DEMO defaults are 0.10% risk per trade, 0.50% maximum simultaneous risk, 25% maximum
 deposit load, two positions, and 0.50% total risk for the USD group. The daily gate reserves current open risk

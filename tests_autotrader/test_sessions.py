@@ -41,6 +41,7 @@ class IntradayEntryScheduleTests(unittest.TestCase):
             SessionConfig(
                 entry_schedules={
                     "EURUSD": EntrySchedule("America/Guayaquil", ("09:00-11:00",)),
+                    "USDJPY": EntrySchedule("America/Guayaquil", ("09:00-11:00", "18:00-23:00")),
                     "NASDAQ": EntrySchedule("America/New_York", ("10:00-12:30",)),
                 }
             )
@@ -59,6 +60,12 @@ class IntradayEntryScheduleTests(unittest.TestCase):
         winter_inside = datetime(2026, 1, 5, 15, 0, tzinfo=timezone.utc)  # 10:00 EST
         self.assertTrue(self.guard.evaluate("us_indices", summer_inside, canonical_symbol="NASDAQ")[0])
         self.assertTrue(self.guard.evaluate("us_indices", winter_inside, canonical_symbol="NASDAQ")[0])
+
+    def test_usdjpy_evening_window_is_allowed_in_quito(self):
+        evening = datetime(2026, 8, 24, 23, 0, tzinfo=timezone.utc)  # 18:00 Quito
+        after = datetime(2026, 8, 25, 4, 0, tzinfo=timezone.utc)  # 23:00 Quito
+        self.assertTrue(self.guard.evaluate("usd", evening, canonical_symbol="USDJPY")[0])
+        self.assertFalse(self.guard.evaluate("usd", after, canonical_symbol="USDJPY")[0])
 
     def test_weekend_guard_still_wins_over_intraday_schedule(self):
         friday_cutoff = datetime(2026, 8, 28, 20, 30, tzinfo=timezone.utc)
