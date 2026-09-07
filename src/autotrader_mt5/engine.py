@@ -9,6 +9,7 @@ import logging
 
 from .broker import Broker
 from .config import AppConfig
+from .entry_controls import EntryThrottle
 from .management import PositionManager
 from .market_data import MarketDataGuard
 from .models import OrderRequest, Position, ScoredSignal
@@ -33,6 +34,7 @@ class AutoTrader:
         self.signal_engine = SignalEngine()
         self.risk_manager = RiskManager(config)
         self.store = EventStore(config.log_directory)
+        self.entry_throttle = EntryThrottle(config.entry_controls, self.store)
         self.position_manager = PositionManager(config, broker, self.store)
         self.market_data_guard = MarketDataGuard(config.market_data)
         self.session_guard = EntrySessionGuard(config.sessions)
@@ -129,6 +131,15 @@ class AutoTrader:
         positions = list(await self.broker.positions())
         projected_margin = account.margin
         for signal in candidates:
+            entry_allowed, entry_reason = self.entry_throttle.evaluate(signal.canonical_symbol, self.clock())
+            if not entry_allowed:
+                self.store.record(
+                    "entry_rejection",
+                    {"signal": signal, "reason": entry_reason},
+                    signal.canonical_symbol,
+                )
+                logger.warning("Skipping %s: %s", signal.canonical_symbol, entry_reason)
+                continue
             entry_allowed, session_reason = self.session_guard.evaluate(
                 self.config.profile_for(signal.canonical_symbol).group,
                 self.clock(),

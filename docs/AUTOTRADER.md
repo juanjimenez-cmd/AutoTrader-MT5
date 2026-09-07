@@ -15,8 +15,8 @@ and checks again immediately before order submission or stop modification. Never
 
 - `config.py`: typed TOML configuration and asset profiles.
 - `symbols.py`: exact/prefix/suffix alias resolution for broker-specific names.
-- `strategies/`: independent trend, breakout, momentum, and mean-reversion votes.
-- `signals.py`: shared M5/M15 ensemble and normalized 0-100 score.
+- `strategies/`: trend, breakout, and momentum components of one conservative strategy.
+- `signals.py`: shared H1-context, M15-confirmation, M5-execution trend-breakout signal and 0-100 score.
 - `risk.py`: prospective daily loss, margin load, position, portfolio-risk, and correlation-group gates.
 - `engine.py`: concurrent market-data scanner with sequential risk-aware execution.
 - `management.py`: breakeven and ATR trailing stops, restricted to this bot's magic number.
@@ -117,7 +117,8 @@ stops if none remain.
 
 Backtesting does not connect to MetaTrader and runs on both Windows and macOS with Python 3.13+. Supply M5 CSV data with
 `time,open,high,low,close` and optional `volume` or `tick_volume`. `time` may be a Unix timestamp or ISO-8601.
-M15 bars are derived from M5, and the unfinished current bar is never included in a decision.
+M15 and H1 context bars are derived from M5, and the unfinished current bar is never included in a decision.
+Use enough history to form at least 35 completed H1 bars (a minimum of roughly 450 M5 rows).
 
 ```bash
 PYTHONPATH=src python -m autotrader_mt5 backtest \
@@ -134,7 +135,7 @@ slippage, swaps, partial fills, news gaps, or broker latency. Add these before u
 ## Configuration
 
 `configs/autotrader.toml` contains the `auto` platform transport, macOS bridge endpoint, v1 market profiles,
-enabled markets, M5/M15 timeframes, minimum score, scan cadence, asset risk, ATR stops, reward/risk ratios,
+enabled markets, M5/M15 execution timeframes plus H1 context, minimum score, scan cadence, asset risk, ATR stops, reward/risk ratios,
 daily loss, total exposure, maximum deposit load, maximum positions, USD/index/crypto group limits, breakeven,
 trailing, intraday and weekend entry guards, and broker aliases. Percentages are percentage points: `0.10` means
 0.10% of equity.
@@ -144,7 +145,7 @@ also receives an identity preflight using the broker's base/profit currencies an
 such as Barrick Gold (`GOLD`) from being traded as spot gold.
 
 Before scoring, the live engine rejects a symbol when its latest tick is more than 120 seconds old or its last
-closed M5/M15 candle is older than two complete timeframe intervals plus the configured grace period. This
+closed M5/M15/H1 candle is older than two complete timeframe intervals plus the configured grace period. This
 prevents Friday candles or stopped quotes from becoming executable signals when a market is closed. Native
 Windows timestamps remain UTC. The macOS bridge exposes broker wall-clock timestamps, so
 `market_data.bridge_server_timezone` converts them to UTC; change this IANA timezone if the broker does not use
@@ -152,7 +153,7 @@ the configured EET/EEST schedule.
 
 The weekend guard blocks new `usd` and `us_indices` positions from Friday 20:30 UTC until Sunday 22:30 UTC.
 The configurable schedules in `[sessions.entry_schedules]` also block new entries outside the selected liquidity
-windows: EURUSD/GBPUSD use 09:00–11:00 in Quito, USDJPY uses 09:00–11:00 and 18:00–23:00 in Quito, XAUUSD
+windows: EURUSD/GBPUSD use 09:00–11:00 in Quito, USDJPY uses 09:00–11:00 in Quito, XAUUSD
 uses 08:30–11:30 in Quito, and US indices use 10:00–12:30 New York time (which follows U.S. daylight saving
 time). This does not close positions or disable position management; SL/TP, breakeven, and trailing management
 continue outside entry windows. Broker trading sessions remain authoritative: a symbol can still be unavailable
@@ -166,9 +167,10 @@ stop distance. Required margin is calculated with MetaTrader and the projected d
 `order_send` when it exceeds the configured cap. If the broker still responds `Trade disabled`, that instrument
 is blocked until the bot restarts instead of being retried every minute.
 
-GBPUSD and USDJPY are enabled under the conservative 0.10% per-trade risk, USD correlation cap, weekend-entry
-guard, and fresh-market-data checks. BTCUSD and ETHUSD remain absent because MetaQuotes-Demo does not provide
-those instruments; their profiles and aliases remain available for a future compatible broker.
+The supplied validation configuration enables **EURUSD only**. GBPUSD is disabled after its losing DEMO
+sample, while USDJPY and XAUUSD remain configured but disabled until each passes an independent forward test.
+BTCUSD and ETHUSD remain absent because MetaQuotes-Demo does not provide those instruments; their profiles and
+aliases remain available for a future compatible broker.
 
 ## DEMO promotion criteria
 
@@ -183,9 +185,11 @@ meets all of these operational gates:
 
 These are validation gates, not a profitability guarantee, and v1 remains technically restricted to DEMO.
 
-The score is based on vote conviction, agreement, and strategy/timeframe coverage. M15 and trend votes receive
-slightly higher weights; mean reversion receives a lower weight because it naturally conflicts with trend
-signals. A score is a filter, not a probability of profit.
+An entry is allowed only when all four conditions agree: H1 trend, M15 trend, M15 breakout, and M5 momentum.
+The score weights that hierarchy and is a filter, not a probability of profit. The initial stop is based on M15
+ATR, rather than M5 ATR, to reduce stop-outs caused by normal M5 noise. `[entry_controls]` persists a 90-minute
+per-symbol cooldown and caps the configured bot at two accepted entries per symbol per UTC day, including after
+a process restart.
 
 ## Verification
 

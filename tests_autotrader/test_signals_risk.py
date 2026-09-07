@@ -12,7 +12,7 @@ class SignalAndRiskTests(unittest.TestCase):
         self.config = replace(test_config(), min_score=30)
         candles = rising_candles()
         self.signal = SignalEngine().evaluate(
-            "EURUSD", "EURUSD.a", {"M5": candles, "M15": candles}, 1.5, 2.0
+            "EURUSD", "EURUSD.a", {"M5": candles, "M15": candles, "H1": candles}, 1.5, 2.0
         )
 
     def test_score_and_mandatory_stops(self):

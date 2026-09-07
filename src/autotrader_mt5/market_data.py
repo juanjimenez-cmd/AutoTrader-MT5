@@ -8,7 +8,7 @@ from .config import MarketDataConfig
 from .models import Candle
 
 
-TIMEFRAME_SECONDS = {"M5": 300, "M15": 900}
+TIMEFRAME_SECONDS = {"M5": 300, "M15": 900, "H1": 3600}
 
 
 class MarketDataGuard:

@@ -1,8 +1,10 @@
 [bot]
-# BTCUSD and ETHUSD are disabled because MetaQuotes-Demo does not provide them.
-symbols = ["EURUSD", "GBPUSD", "USDJPY", "XAUUSD", "NASDAQ", "SP500"]
-timeframes = ["M5", "M15"]
-min_score = 65
+# Validation starts with EURUSD only. Other assets remain configured below but
+# stay disabled until their independent forward test passes.
+symbols = ["EURUSD"]
+# H1 is context only; M15 confirms the breakout and M5 executes it.
+timeframes = ["M5", "M15", "H1"]
+min_score = 75
 scan_interval_seconds = 60
 candle_count = 120
 demo_only = true
@@ -33,6 +35,11 @@ breakeven_at_r = 1.0
 trailing_start_at_r = 1.5
 trailing_atr_multiplier = 1.25
 
+[entry_controls]
+# Restart-safe controls against immediate re-entry after a stop or exit.
+cooldown_minutes = 90
+max_entries_per_symbol_day = 2
+
 [market_data]
 # MetaQuotes-Demo uses EET/EEST server wall-clock timestamps through the macOS bridge.
 # Native Windows MT5 timestamps remain UTC and do not use this conversion.
@@ -49,8 +56,7 @@ friday_entry_cutoff_utc = "20:30"
 sunday_entry_resume_utc = "22:30"
 guarded_groups = ["usd", "us_indices"]
 
-# Quito is UTC-5 all year. EURUSD and GBPUSD use the liquid London/New York
-# overlap. USDJPY also receives a conservative evening window around Tokyo.
+# Quito is UTC-5 all year. EURUSD is the sole enabled validation market.
 [sessions.entry_schedules.EURUSD]
 timezone = "America/Guayaquil"
 windows = ["09:00-11:00"]
@@ -61,7 +67,7 @@ windows = ["09:00-11:00"]
 
 [sessions.entry_schedules.USDJPY]
 timezone = "America/Guayaquil"
-windows = ["09:00-11:00", "18:00-23:00"]
+windows = ["09:00-11:00"]
 
 # Gold is allowed around the London/New York crossover, when both major
 # venues contribute liquidity.

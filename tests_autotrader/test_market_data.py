@@ -21,6 +21,7 @@ class MarketDataGuardTests(unittest.TestCase):
         candles = {
             "M5": [self.candle(self.now_timestamp - 350)],
             "M15": [self.candle(self.now_timestamp - 1_550)],
+            "H1": [self.candle(self.now_timestamp - 7_150)],
         }
         allowed, _ = self.guard.evaluate(candles, self.now_timestamp - 1, self.now)
         self.assertTrue(allowed)

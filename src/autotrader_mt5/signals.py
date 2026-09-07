@@ -1,4 +1,4 @@
-"""Signal composition and 0-100 scoring shared by live and backtest."""
+"""Conservative multi-timeframe trend-breakout signals shared by live and backtest."""
 
 from __future__ import annotations
 
@@ -35,22 +35,13 @@ class SignalEngine:
                     )
                 )
 
-        active = [vote for vote in votes if vote.direction is not Direction.FLAT and vote.strength > 0]
-        if not active:
-            direction, score = Direction.FLAT, 0
-        else:
-            net = sum(vote.direction.sign * vote.strength * vote.weight for vote in active)
-            total = sum(vote.strength * vote.weight for vote in active)
-            direction = Direction.LONG if net > 0 else Direction.SHORT if net < 0 else Direction.FLAT
-            aligned = [vote for vote in active if vote.direction is direction]
-            alignment = abs(net) / total if total else 0.0
-            conviction = sum(vote.strength * vote.weight for vote in aligned) / sum(vote.weight for vote in aligned)
-            coverage = len(active) / max(len(votes), 1)
-            score = round(100 * clamp(conviction * alignment * (0.75 + 0.25 * coverage)))
+        direction, score = self._trend_breakout_decision(votes)
 
         primary = candles_by_timeframe.get("M5") or next(iter(candles_by_timeframe.values()))
         entry = primary[-1].close
-        volatility = atr(primary)
+        # The higher M15 volatility prevents a very small M5 stop from turning
+        # normal noise into a full loss.
+        volatility = atr(candles_by_timeframe.get("M15", primary))
         distance = volatility * atr_stop_multiplier
         if direction is Direction.LONG:
             stop_loss, take_profit = entry - distance, entry + distance * reward_risk
@@ -70,3 +61,38 @@ class SignalEngine:
             votes=tuple(votes),
             timestamp=primary[-1].time,
         )
+
+    @staticmethod
+    def _trend_breakout_decision(votes: list[SignalVote]) -> tuple[Direction, int]:
+        """Require trend context, M15 confirmation, and an M5 execution trigger.
+
+        This deliberately rejects the old "net vote" behaviour: a counter-trend
+        mean-reversion or a single fast indicator can no longer create a trade.
+        """
+        indexed = {(vote.strategy, vote.timeframe): vote for vote in votes}
+        h1_trend = indexed.get(("trend", "H1"))
+        m15_trend = indexed.get(("trend", "M15"))
+        m15_breakout = indexed.get(("breakout", "M15"))
+        m5_momentum = indexed.get(("momentum", "M5"))
+        required = (h1_trend, m15_trend, m15_breakout, m5_momentum)
+        if any(vote is None or vote.direction is Direction.FLAT for vote in required):
+            return Direction.FLAT, 0
+
+        direction = h1_trend.direction
+        if any(vote.direction is not direction for vote in required):
+            return Direction.FLAT, 0
+        if h1_trend.strength < 0.45 or m15_trend.strength < 0.35 or m15_breakout.strength < 0.55:
+            return Direction.FLAT, 0
+        if m5_momentum.strength < 0.25:
+            return Direction.FLAT, 0
+
+        score = round(
+            100
+            * clamp(
+                0.40 * h1_trend.strength
+                + 0.20 * m15_trend.strength
+                + 0.30 * m15_breakout.strength
+                + 0.10 * m5_momentum.strength
+            )
+        )
+        return direction, score

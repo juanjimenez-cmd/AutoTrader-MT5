@@ -11,6 +11,7 @@ from pathlib import Path
 from .config import AppConfig
 from .models import AccountSnapshot, Candle, Direction, Position
 from .risk import RiskManager
+from .sessions import EntrySessionGuard
 from .signals import SignalEngine
 
 
@@ -124,11 +125,13 @@ class Backtester:
         self.initial_equity = initial_equity
         self.signal_engine = SignalEngine()
         self.risk_manager = RiskManager(config)
+        self.session_guard = EntrySessionGuard(config.sessions)
 
     def run(self, canonical_symbol: str, m5_candles: list[Candle]) -> BacktestReport:
         if len(m5_candles) < self.config.candle_count + 10:
             raise ValueError("Not enough M5 candles for configured candle_count")
         m15_candles = aggregate(m5_candles)
+        h1_candles = aggregate(m5_candles, seconds=3600)
         profile = self.config.profile_for(canonical_symbol)
         equity = peak = self.initial_equity
         max_drawdown = 0.0
@@ -171,17 +174,27 @@ class Backtester:
             m5_window = m5_candles[index - self.config.candle_count : index]
             # A derived M15 bar is usable only after all three M5 bars have closed.
             m15_available = [item for item in m15_candles if item.time + 900 <= current.time]
-            if len(m15_available) < 35:
+            h1_available = [item for item in h1_candles if item.time + 3600 <= current.time]
+            if len(m15_available) < 35 or len(h1_available) < 35:
                 continue
             signal = self.signal_engine.evaluate(
                 canonical_symbol,
                 canonical_symbol,
-                {"M5": m5_window, "M15": m15_available[-self.config.candle_count :]},
+                {
+                    "M5": m5_window,
+                    "M15": m15_available[-self.config.candle_count :],
+                    "H1": h1_available[-self.config.candle_count :],
+                },
                 profile.atr_stop_multiplier,
                 profile.reward_risk,
             )
             account = AccountSnapshot(equity, equity, "BACKTEST-DEMO", 0)
             now = datetime.fromtimestamp(current.time, timezone.utc)
+            entry_allowed, _ = self.session_guard.evaluate(
+                profile.group, now, canonical_symbol=canonical_symbol
+            )
+            if not entry_allowed:
+                continue
             decision = self.risk_manager.evaluate(signal, account, (), now=now)
             if decision.allowed:
                 active = {

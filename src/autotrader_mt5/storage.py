@@ -54,3 +54,19 @@ class EventStore:
                     "INSERT INTO events(timestamp, event_type, symbol, payload_json) VALUES (?, ?, ?, ?)",
                     (timestamp, event_type, symbol, json.dumps(body, ensure_ascii=False, sort_keys=True)),
                 )
+
+    def accepted_order_times(self, symbol: str) -> tuple[datetime, ...]:
+        """Return persisted successful entry times for conservative restart-safe throttling."""
+        with closing(sqlite3.connect(self.sqlite_path)) as connection:
+            rows = connection.execute(
+                "SELECT timestamp, payload_json FROM events WHERE event_type = 'order_result' AND symbol = ?",
+                (symbol,),
+            ).fetchall()
+        result: list[datetime] = []
+        for timestamp, payload in rows:
+            try:
+                if json.loads(payload).get("result", {}).get("accepted"):
+                    result.append(datetime.fromisoformat(timestamp))
+            except (TypeError, ValueError, json.JSONDecodeError):
+                continue
+        return tuple(result)

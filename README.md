@@ -2,11 +2,12 @@
 
 DEMO-only multi-asset trading bot built on `Ichinga-Samuel/aiomql` v4.1.2.
 
-It scans the enabled DEMO portfolio on M5/M15; resolves broker symbol
-suffixes/prefixes; combines trend, breakout, momentum, and mean-reversion strategies into a 0-100 score; and
+It scans the enabled DEMO portfolio with H1 trend context, M15 breakout confirmation, and M5 execution; resolves broker symbol
+suffixes/prefixes; requires all trend/breakout/momentum filters to agree before calculating a 0-100 score; and
 enforces mandatory SL/TP, prospective daily loss, simultaneous risk, correlated exposure, deposit-load, and
 position limits. New entries are limited to configurable market-liquidity windows, while open positions remain
-managed at all times. GBPUSD and USDJPY are enabled under the hardened DEMO risk, session, and market-data
+managed at all times. The supplied validation configuration enables EURUSD only; GBPUSD and USDJPY remain
+disabled until they pass independent forward tests under the hardened DEMO risk, session, and market-data
 controls. BTCUSD and ETHUSD are inactive because MetaQuotes-Demo does not provide those instruments. Live
 signals and backtests share the same signal engine.
 

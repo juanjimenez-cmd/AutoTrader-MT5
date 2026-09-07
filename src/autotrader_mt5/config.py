@@ -61,6 +61,20 @@ class ManagementConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class EntryControlConfig:
+    """Turnover controls applied before a new order can be submitted."""
+
+    cooldown_minutes: int = 90
+    max_entries_per_symbol_day: int = 2
+
+    def __post_init__(self) -> None:
+        if self.cooldown_minutes < 0:
+            raise ValueError("entry_controls.cooldown_minutes must not be negative")
+        if self.max_entries_per_symbol_day <= 0:
+            raise ValueError("entry_controls.max_entries_per_symbol_day must be positive")
+
+
+@dataclass(frozen=True, slots=True)
 class MarketDataConfig:
     bridge_server_timezone: str = "Europe/Helsinki"
     max_tick_age_seconds: int = 120
@@ -150,6 +164,7 @@ class AppConfig:
     log_directory: Path
     risk: RiskConfig
     management: ManagementConfig
+    entry_controls: EntryControlConfig
     market_data: MarketDataConfig
     sessions: SessionConfig
     mt5: MT5ConnectionConfig
@@ -161,8 +176,10 @@ class AppConfig:
             raise ValueError("AutoTrader-MT5 v1 refuses to start unless demo_only=true")
         if not 0 <= self.min_score <= 100:
             raise ValueError("min_score must be between 0 and 100")
-        if set(self.timeframes) - {"M5", "M15"}:
-            raise ValueError("v1 supports only M5 and M15")
+        if set(self.timeframes) - {"M5", "M15", "H1"}:
+            raise ValueError("v1 supports M5, M15, and H1 context candles only")
+        if not {"M5", "M15", "H1"}.issubset(self.timeframes):
+            raise ValueError("v2 trend strategy requires M5, M15, and H1 candles")
         if self.risk.daily_loss_limit_percent <= 0 or self.risk.max_positions <= 0:
             raise ValueError("risk limits must be positive")
         if not 0 < self.risk.max_deposit_load_percent <= 100:
@@ -188,6 +205,7 @@ def load_config(path: str | Path) -> AppConfig:
     bot = raw.get("bot", {})
     risk_raw = raw.get("risk", {})
     management_raw = raw.get("management", {})
+    entry_controls_raw = raw.get("entry_controls", {})
     market_data_raw = raw.get("market_data", {})
     sessions_raw = raw.get("sessions", {})
     mt5_raw = raw.get("mt5", {})
@@ -211,6 +229,10 @@ def load_config(path: str | Path) -> AppConfig:
         breakeven_at_r=float(management_raw.get("breakeven_at_r", 1.0)),
         trailing_start_at_r=float(management_raw.get("trailing_start_at_r", 1.5)),
         trailing_atr_multiplier=float(management_raw.get("trailing_atr_multiplier", 1.25)),
+    )
+    entry_controls = EntryControlConfig(
+        cooldown_minutes=int(entry_controls_raw.get("cooldown_minutes", 90)),
+        max_entries_per_symbol_day=int(entry_controls_raw.get("max_entries_per_symbol_day", 2)),
     )
     market_data = MarketDataConfig(
         bridge_server_timezone=str(market_data_raw.get("bridge_server_timezone", "Europe/Helsinki")),
@@ -265,6 +287,7 @@ def load_config(path: str | Path) -> AppConfig:
         log_directory=_as_path(str(bot.get("log_directory", "logs")), base),
         risk=risk,
         management=management,
+        entry_controls=entry_controls,
         market_data=market_data,
         sessions=sessions,
         mt5=mt5,
