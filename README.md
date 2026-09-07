@@ -11,8 +11,9 @@ disabled until they pass independent forward tests under the hardened DEMO risk,
 controls. BTCUSD and ETHUSD are inactive because MetaQuotes-Demo does not provide those instruments. Live
 signals and backtests share the same signal engine.
 
-**Version 1 refuses real-money accounts at multiple runtime boundaries.** It supports native Windows and
-macOS through a local paper-trading bridge. Start with the complete
+**Version 1 refuses real-money accounts at multiple runtime boundaries.** The supplied configuration also uses
+an order-free **observation mode**: it records qualified DEMO signals but cannot open, close, or modify a
+position. It supports native Windows and macOS through a local paper-trading bridge. Start with the complete
 [Windows/macOS installation, configuration, architecture, and backtesting guide](docs/AUTOTRADER.md).
 
 ## Platform install
