@@ -116,7 +116,10 @@ class AutoTrader:
             return None
 
     async def scan_cycle(self) -> list[ScoredSignal]:
-        await self.position_manager.manage()
+        # Observation is a hard no-write mode: it must not submit a new order
+        # or modify the stops of an existing position.
+        if self.config.execution.mode == "demo":
+            await self.position_manager.manage()
         signals = await asyncio.gather(
             *(
                 self._signal_for(canonical, broker)
@@ -201,6 +204,25 @@ class AutoTrader:
                     risk_amount=decision.risk_amount,
                     score=signal.score,
                 )
+                if self.config.execution.mode == "observation":
+                    self.store.record(
+                        "observation_candidate",
+                        {
+                            "signal": signal,
+                            "risk_decision": decision,
+                            "request": request,
+                            "required_margin": required_margin,
+                            "message": "validated signal recorded; order submission disabled",
+                        },
+                        signal.canonical_symbol,
+                    )
+                    logger.info(
+                        "Observation candidate %s %s score=%s; no order sent",
+                        signal.canonical_symbol,
+                        signal.direction.value,
+                        signal.score,
+                    )
+                    continue
                 result = await self.broker.submit(request)
                 self.store.record("order_result", {"request": request, "result": result}, signal.canonical_symbol)
                 if not result.accepted and "trade disabled" in result.message.lower():
