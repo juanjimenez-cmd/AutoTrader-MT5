@@ -24,12 +24,21 @@ class EngineTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_one_cycle_resolves_scans_and_places_demo_orders(self):
         broker = FakeBroker()
-        engine = AutoTrader(self.config, broker, clock=self.clock)
+        config = replace(self.config, execution=replace(self.config.execution, mode="demo"))
+        engine = AutoTrader(config, broker, clock=self.clock)
         await engine.run(once=True)
         self.assertEqual(engine.resolved_symbols, {"EURUSD": "EURUSD.a", "NASDAQ": "USTEC.a"})
         self.assertGreaterEqual(len(broker.orders), 1)
         self.assertTrue(all(order.stop_loss > 0 and order.take_profit > 0 for order in broker.orders))
         self.assertFalse(broker.connected)
+
+    async def test_observation_mode_records_candidate_without_submitting_or_managing(self):
+        broker = FakeBroker()
+        engine = AutoTrader(self.config, broker, clock=self.clock)
+        await engine.run(once=True)
+        self.assertEqual(broker.orders, [])
+        events = engine.store.jsonl_path.read_text(encoding="utf-8")
+        self.assertIn('"event_type": "observation_candidate"', events)
 
     async def test_disabled_broker_symbol_is_removed_before_scanning(self):
         broker = FakeBroker()
@@ -40,7 +49,11 @@ class EngineTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(all(order.canonical_symbol == "EURUSD" for order in broker.orders))
 
     async def test_trade_disabled_order_result_blocks_retries_until_restart(self):
-        config = replace(self.config, symbols=("EURUSD",))
+        config = replace(
+            self.config,
+            symbols=("EURUSD",),
+            execution=replace(self.config.execution, mode="demo"),
+        )
         broker = FakeBroker()
         broker.submit_rejection = "order_check failed: Trade disabled"
         engine = AutoTrader(config, broker, clock=self.clock)
@@ -63,7 +76,11 @@ class EngineTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(broker.orders, [])
 
     async def test_weekend_guard_does_not_block_crypto_group(self):
-        config = replace(self.config, symbols=("BTCUSD",))
+        config = replace(
+            self.config,
+            symbols=("BTCUSD",),
+            execution=replace(self.config.execution, mode="demo"),
+        )
         broker = FakeBroker()
         saturday = lambda: datetime(2026, 8, 29, 12, 0, tzinfo=timezone.utc)
         broker.tick_time_value = int(saturday().timestamp())
