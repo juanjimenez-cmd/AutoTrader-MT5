@@ -42,12 +42,43 @@ closed_bar_grace_seconds = 90
 future_tolerance_seconds = 5
 
 [sessions]
-# Conservative UTC window. Existing positions are still managed, but no new
-# Forex, gold, or US-index positions are opened near the weekend closure.
+# Existing positions are always managed, but new entries are limited by the
+# weekday schedules below and the conservative weekend closure.
 weekend_guard_enabled = true
 friday_entry_cutoff_utc = "20:30"
 sunday_entry_resume_utc = "22:30"
 guarded_groups = ["usd", "us_indices"]
+
+# Quito is UTC-5 all year. EURUSD, GBPUSD and USDJPY use the liquid
+# London/New York overlap. The optional Tokyo USDJPY window is deliberately
+# not enabled until it has its own DEMO validation sample.
+[sessions.entry_schedules.EURUSD]
+timezone = "America/Guayaquil"
+windows = ["09:00-11:00"]
+
+[sessions.entry_schedules.GBPUSD]
+timezone = "America/Guayaquil"
+windows = ["09:00-11:00"]
+
+[sessions.entry_schedules.USDJPY]
+timezone = "America/Guayaquil"
+windows = ["09:00-11:00"]
+
+# Gold is allowed around the London/New York crossover, when both major
+# venues contribute liquidity.
+[sessions.entry_schedules.XAUUSD]
+timezone = "America/Guayaquil"
+windows = ["08:30-11:30"]
+
+# Use New York local time so the schedule tracks U.S. daylight saving time.
+# It deliberately skips the first 30 minutes of the U.S. cash-equity open.
+[sessions.entry_schedules.NASDAQ]
+timezone = "America/New_York"
+windows = ["10:00-12:30"]
+
+[sessions.entry_schedules.SP500]
+timezone = "America/New_York"
+windows = ["10:00-12:30"]
 
 [profiles.EURUSD]
 risk_percent = 0.10

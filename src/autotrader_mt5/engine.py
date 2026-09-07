@@ -132,6 +132,7 @@ class AutoTrader:
             entry_allowed, session_reason = self.session_guard.evaluate(
                 self.config.profile_for(signal.canonical_symbol).group,
                 self.clock(),
+                canonical_symbol=signal.canonical_symbol,
             )
             if not entry_allowed:
                 self.store.record(

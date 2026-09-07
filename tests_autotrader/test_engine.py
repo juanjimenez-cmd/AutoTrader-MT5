@@ -3,13 +3,19 @@ from datetime import datetime, timezone
 import shutil
 import unittest
 
+from autotrader_mt5.config import SessionConfig
 from autotrader_mt5.engine import AutoTrader
 from tests_autotrader.helpers import FakeBroker, test_config
 
 
 class EngineTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        self.config = replace(test_config(), symbols=("EURUSD", "NASDAQ"), min_score=30)
+        self.config = replace(
+            test_config(),
+            symbols=("EURUSD", "NASDAQ"),
+            min_score=30,
+            sessions=SessionConfig(),
+        )
         self.clock = lambda: datetime(2026, 8, 25, 12, 0, tzinfo=timezone.utc)
         shutil.rmtree(self.config.log_directory, ignore_errors=True)
 
@@ -78,5 +84,12 @@ class EngineTests(unittest.IsolatedAsyncioTestCase):
         broker = FakeBroker()
         broker.candle_lag_seconds = 1_000
         engine = AutoTrader(config, broker, clock=self.clock)
+        await engine.run(once=True)
+        self.assertEqual(broker.orders, [])
+
+    async def test_intraday_schedule_blocks_new_order_but_not_scanning(self):
+        config = replace(test_config(), symbols=("EURUSD",), min_score=30)
+        broker = FakeBroker()
+        engine = AutoTrader(config, broker, clock=self.clock)  # 07:00 Quito, before the entry window.
         await engine.run(once=True)
         self.assertEqual(broker.orders, [])

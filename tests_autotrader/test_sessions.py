@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 import unittest
 
-from autotrader_mt5.config import SessionConfig
+from autotrader_mt5.config import EntrySchedule, SessionConfig
 from autotrader_mt5.sessions import EntrySessionGuard
 
 
@@ -33,3 +33,35 @@ class EntrySessionGuardTests(unittest.TestCase):
     def test_naive_datetime_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "timezone-aware"):
             self.guard.evaluate("usd", datetime(2026, 8, 28, 20, 30))
+
+
+class IntradayEntryScheduleTests(unittest.TestCase):
+    def setUp(self):
+        self.guard = EntrySessionGuard(
+            SessionConfig(
+                entry_schedules={
+                    "EURUSD": EntrySchedule("America/Guayaquil", ("09:00-11:00",)),
+                    "NASDAQ": EntrySchedule("America/New_York", ("10:00-12:30",)),
+                }
+            )
+        )
+
+    def test_quito_schedule_allows_only_the_configured_window(self):
+        before = datetime(2026, 8, 24, 13, 59, tzinfo=timezone.utc)  # 08:59 Quito
+        inside = datetime(2026, 8, 24, 14, 0, tzinfo=timezone.utc)  # 09:00 Quito
+        after = datetime(2026, 8, 24, 16, 0, tzinfo=timezone.utc)  # 11:00 Quito
+        self.assertFalse(self.guard.evaluate("usd", before, canonical_symbol="EURUSD")[0])
+        self.assertTrue(self.guard.evaluate("usd", inside, canonical_symbol="EURUSD")[0])
+        self.assertFalse(self.guard.evaluate("usd", after, canonical_symbol="EURUSD")[0])
+
+    def test_new_york_schedule_tracks_daylight_saving_time(self):
+        summer_inside = datetime(2026, 8, 24, 14, 0, tzinfo=timezone.utc)  # 10:00 EDT
+        winter_inside = datetime(2026, 1, 5, 15, 0, tzinfo=timezone.utc)  # 10:00 EST
+        self.assertTrue(self.guard.evaluate("us_indices", summer_inside, canonical_symbol="NASDAQ")[0])
+        self.assertTrue(self.guard.evaluate("us_indices", winter_inside, canonical_symbol="NASDAQ")[0])
+
+    def test_weekend_guard_still_wins_over_intraday_schedule(self):
+        friday_cutoff = datetime(2026, 8, 28, 20, 30, tzinfo=timezone.utc)
+        allowed, reason = self.guard.evaluate("usd", friday_cutoff, canonical_symbol="EURUSD")
+        self.assertFalse(allowed)
+        self.assertIn("weekend", reason)

@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 import tomllib
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
 DEFAULT_ALIASES: dict[str, tuple[str, ...]] = {
@@ -75,24 +76,50 @@ class MarketDataConfig:
             raise ValueError("market_data.future_tolerance_seconds must not be negative")
 
 
+def _validate_clock(value: str, field_name: str) -> None:
+    parts = value.split(":")
+    if len(parts) != 2 or not all(part.isdigit() for part in parts):
+        raise ValueError(f"{field_name} must use HH:MM")
+    hour, minute = map(int, parts)
+    if not 0 <= hour <= 23 or not 0 <= minute <= 59:
+        raise ValueError(f"{field_name} must use HH:MM")
+
+
+@dataclass(frozen=True, slots=True)
+class EntrySchedule:
+    """Local-time windows that permit new entries for one canonical symbol."""
+
+    timezone: str
+    windows: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        try:
+            ZoneInfo(self.timezone)
+        except ZoneInfoNotFoundError as error:
+            raise ValueError(f"unknown session timezone {self.timezone!r}") from error
+        if not self.windows:
+            raise ValueError("session entry schedule must contain at least one window")
+        for window in self.windows:
+            start, separator, end = window.partition("-")
+            if separator != "-":
+                raise ValueError("session entry windows must use HH:MM-HH:MM")
+            _validate_clock(start, "session entry window start")
+            _validate_clock(end, "session entry window end")
+            if start == end:
+                raise ValueError("session entry window start and end must differ")
+
+
 @dataclass(frozen=True, slots=True)
 class SessionConfig:
     weekend_guard_enabled: bool = True
     friday_entry_cutoff_utc: str = "20:30"
     sunday_entry_resume_utc: str = "22:30"
     guarded_groups: tuple[str, ...] = ("usd", "us_indices")
+    entry_schedules: dict[str, EntrySchedule] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        for field_name, value in (
-            ("friday_entry_cutoff_utc", self.friday_entry_cutoff_utc),
-            ("sunday_entry_resume_utc", self.sunday_entry_resume_utc),
-        ):
-            parts = value.split(":")
-            if len(parts) != 2 or not all(part.isdigit() for part in parts):
-                raise ValueError(f"sessions.{field_name} must use HH:MM UTC")
-            hour, minute = map(int, parts)
-            if not 0 <= hour <= 23 or not 0 <= minute <= 59:
-                raise ValueError(f"sessions.{field_name} must use HH:MM UTC")
+        _validate_clock(self.friday_entry_cutoff_utc, "sessions.friday_entry_cutoff_utc")
+        _validate_clock(self.sunday_entry_resume_utc, "sessions.sunday_entry_resume_utc")
         if not self.guarded_groups:
             raise ValueError("sessions.guarded_groups must not be empty")
 
@@ -191,11 +218,23 @@ def load_config(path: str | Path) -> AppConfig:
         closed_bar_grace_seconds=int(market_data_raw.get("closed_bar_grace_seconds", 90)),
         future_tolerance_seconds=int(market_data_raw.get("future_tolerance_seconds", 5)),
     )
+    schedules_raw = sessions_raw.get("entry_schedules", {})
+    if not isinstance(schedules_raw, dict):
+        raise ValueError("sessions.entry_schedules must be a TOML table")
+    entry_schedules: dict[str, EntrySchedule] = {}
+    for symbol, schedule_raw in schedules_raw.items():
+        if not isinstance(schedule_raw, dict):
+            raise ValueError(f"sessions.entry_schedules.{symbol} must be a TOML table")
+        entry_schedules[str(symbol)] = EntrySchedule(
+            timezone=str(schedule_raw.get("timezone", "America/Guayaquil")),
+            windows=tuple(map(str, schedule_raw.get("windows", ()))),
+        )
     sessions = SessionConfig(
         weekend_guard_enabled=bool(sessions_raw.get("weekend_guard_enabled", True)),
         friday_entry_cutoff_utc=str(sessions_raw.get("friday_entry_cutoff_utc", "20:30")),
         sunday_entry_resume_utc=str(sessions_raw.get("sunday_entry_resume_utc", "22:30")),
         guarded_groups=tuple(map(str, sessions_raw.get("guarded_groups", ("usd", "us_indices")))),
+        entry_schedules=entry_schedules,
     )
     mt5 = MT5ConnectionConfig(
         backend=str(mt5_raw.get("backend", "auto")).lower(),
