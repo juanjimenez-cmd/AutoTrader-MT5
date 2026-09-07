@@ -6,7 +6,7 @@ from dataclasses import replace
 import json
 from pathlib import Path
 
-from .backtest import Backtester, load_candles_csv
+from .backtest import Backtester, _parse_time, load_candles_csv
 from .config import load_config
 from .engine import AutoTrader
 from .mt5_adapter import MT5Broker
@@ -16,7 +16,7 @@ from .mt5_runtime import MT5Runtime
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="autotrader-mt5", description="DEMO-only multi-asset MT5 bot")
     commands = parser.add_subparsers(dest="command", required=True)
-    live = commands.add_parser("live", help="scan and trade a DEMO account")
+    live = commands.add_parser("live", help="scan a DEMO account (orders depend on execution.mode)")
     live.add_argument("--config", default="configs/autotrader.toml")
     live.add_argument("--once", action="store_true", help="run one scanner cycle")
     live.add_argument("--backend", choices=("auto", "native", "bridge"), help="override the configured MT5 transport")
@@ -28,6 +28,10 @@ def build_parser() -> argparse.ArgumentParser:
     backtest.add_argument("--csv", required=True)
     backtest.add_argument("--symbol", required=True)
     backtest.add_argument("--initial-equity", type=float, default=10_000.0)
+    backtest.add_argument(
+        "--forward-start",
+        help="ISO-8601 or Unix time separating in-sample data from the untouched forward sample",
+    )
     backtest.add_argument("--output", type=Path)
     return parser
 
@@ -50,7 +54,12 @@ def main(argv: list[str] | None = None) -> int:
         asyncio.run(AutoTrader(config, MT5Broker(config)).run(once=args.once))
         return 0
     candles = load_candles_csv(args.csv)
-    report = Backtester(config, args.initial_equity).run(args.symbol, candles)
+    tester = Backtester(config, args.initial_equity)
+    report = (
+        tester.run_walk_forward(args.symbol, candles, _parse_time(args.forward_start))
+        if args.forward_start
+        else tester.run(args.symbol, candles)
+    )
     rendered = report.to_json()
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
