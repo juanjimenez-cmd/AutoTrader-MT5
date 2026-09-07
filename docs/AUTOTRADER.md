@@ -95,7 +95,7 @@ autotrader-mt5 doctor --config configs/autotrader.toml
 The default bridge address is `127.0.0.1:18813`; change `[mt5]` in the TOML only if the local bridge uses a
 different address. AutoTrader never falls back to simulated/mock market data in live mode.
 
-## First live cycle on either platform
+## Observation cycle on either platform
 
 Verify that MetaTrader shows the intended DEMO account. Credentials and logs are ignored by Git. Run one
 non-repeating cycle first:
@@ -104,14 +104,18 @@ non-repeating cycle first:
 autotrader-mt5 live --config configs/autotrader.toml --once
 ```
 
-Then inspect `logs/events.jsonl` or `logs/autotrader.sqlite3`. To run continuously:
+The supplied configuration starts in `execution.mode = "observation"`. It reads the DEMO account and market
+data, then records qualified candidates as `observation_candidate` in `logs/events.jsonl` and
+`logs/autotrader.sqlite3`. It cannot open, close, or modify a MetaTrader position in this mode. To observe
+continuously:
 
 ```bash
 autotrader-mt5 live --config configs/autotrader.toml
 ```
 
 Stop with `Ctrl+C`. Missing or non-tradable broker instruments are logged and skipped before scanning; the bot
-stops if none remain.
+stops if none remain. Do not switch to `execution.mode = "demo"` until the forward-validation gates below have
+passed and the configuration change has been reviewed.
 
 ## Backtesting
 
@@ -129,12 +133,30 @@ PYTHONPATH=src python -m autotrader_mt5 backtest \
 ```
 
 The simulator allows one position per symbol, sizes P&L from configured percentage risk, and assumes the stop
-was hit before the target when both prices occur inside a single candle. It does not model spread, commission,
-slippage, swaps, partial fills, news gaps, or broker latency. Add these before using results for decisions.
+was hit before the target when both prices occur inside a single candle. It estimates round-trip spread,
+slippage, and commission using `[backtest_costs]`; the supplied EURUSD values are assumptions that must be
+replaced with values observed from the broker. It does not model swaps, partial fills, news gaps, or broker
+latency.
+
+Use a chronological forward split to keep the later period untouched while assessing the result. For the supplied
+January–September 2026 EURUSD sample, June 1 is an appropriate initial split:
+
+```bash
+PYTHONPATH=src python -m autotrader_mt5 backtest \
+  --config configs/autotrader.toml \
+  --csv backtesting/EURUSD_M5_mt5_demo.csv \
+  --symbol EURUSD \
+  --forward-start 2026-06-01T00:00:00Z \
+  --output backtesting/EURUSD_walk_forward.json
+```
+
+The resulting JSON contains separate `in_sample` and `forward` reports. Do not adjust strategy settings after
+viewing the forward portion; instead collect a new untouched period for the next evaluation.
 
 ## Configuration
 
-`configs/autotrader.toml` contains the `auto` platform transport, macOS bridge endpoint, v1 market profiles,
+`configs/autotrader.toml` contains the `auto` platform transport, macOS bridge endpoint, safe observation-mode
+execution switch, estimated backtest costs, v1 market profiles,
 enabled markets, M5/M15 execution timeframes plus H1 context, minimum score, scan cadence, asset risk, ATR stops, reward/risk ratios,
 daily loss, total exposure, maximum deposit load, maximum positions, USD/index/crypto group limits, breakeven,
 trailing, intraday and weekend entry guards, and broker aliases. Percentages are percentage points: `0.10` means
