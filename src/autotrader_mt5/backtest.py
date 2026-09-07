@@ -26,6 +26,8 @@ class BacktestTrade:
     stop_loss: float
     take_profit: float
     score: int
+    gross_pnl: float
+    friction_cost: float
     pnl: float
     r_multiple: float
     exit_reason: str
@@ -54,12 +56,47 @@ class BacktestReport:
         gross_loss = abs(sum(trade.pnl for trade in self.trades if trade.pnl < 0))
         return gross_profit / gross_loss if gross_loss else 0.0
 
-    def to_json(self) -> str:
+    @property
+    def gross_pnl(self) -> float:
+        return sum(trade.gross_pnl for trade in self.trades)
+
+    @property
+    def friction_cost(self) -> float:
+        return sum(trade.friction_cost for trade in self.trades)
+
+    def to_dict(self) -> dict:
         body = asdict(self)
         body["wins"] = self.wins
         body["win_rate"] = self.win_rate
         body["profit_factor"] = self.profit_factor
-        return json.dumps(body, indent=2, sort_keys=True)
+        body["gross_pnl"] = self.gross_pnl
+        body["friction_cost"] = self.friction_cost
+        return body
+
+    def to_json(self) -> str:
+        return json.dumps(self.to_dict(), indent=2, sort_keys=True)
+
+
+@dataclass(frozen=True, slots=True)
+class WalkForwardReport:
+    """Chronological validation; the forward portion is never used for tuning."""
+
+    symbol: str
+    forward_start: int
+    in_sample: BacktestReport
+    forward: BacktestReport
+
+    def to_json(self) -> str:
+        return json.dumps(
+            {
+                "symbol": self.symbol,
+                "forward_start": datetime.fromtimestamp(self.forward_start, timezone.utc).isoformat(),
+                "in_sample": self.in_sample.to_dict(),
+                "forward": self.forward.to_dict(),
+            },
+            indent=2,
+            sort_keys=True,
+        )
 
 
 def _parse_time(value: str) -> int:
@@ -135,7 +172,30 @@ class Backtester:
         self.risk_manager = RiskManager(config)
         self.session_guard = EntrySessionGuard(config.sessions)
 
-    def run(self, canonical_symbol: str, m5_candles: list[Candle]) -> BacktestReport:
+    def _friction_cost(self, risk_amount: float, entry: float, stop_loss: float) -> float:
+        """Estimated round-trip cost in account currency for a quote-currency USD pair.
+
+        The default contract values model EURUSD. Other instruments need their
+        own values in the TOML before their reports can be interpreted.
+        """
+        costs = self.config.backtest_costs
+        stop_distance = abs(entry - stop_loss)
+        if stop_distance == 0:
+            return 0.0
+        volume_lots = risk_amount / (costs.contract_size * stop_distance)
+        execution_cost = (
+            costs.spread_pips + 2 * costs.slippage_pips_per_side
+        ) * costs.pip_size * costs.contract_size * volume_lots
+        commission_cost = costs.commission_per_lot_round_turn * volume_lots
+        return execution_cost + commission_cost
+
+    def run(
+        self,
+        canonical_symbol: str,
+        m5_candles: list[Candle],
+        *,
+        entry_start_time: int | None = None,
+    ) -> BacktestReport:
         if len(m5_candles) < self.config.candle_count + 10:
             raise ValueError("Not enough M5 candles for configured candle_count")
         m15_candles = aggregate(m5_candles)
@@ -160,7 +220,11 @@ class Backtester:
                     exit_price = active["stop"] if stop_hit else active["target"]
                     reason = "stop_loss" if stop_hit else "take_profit"
                     r_multiple = -1.0 if stop_hit else profile.reward_risk
-                    pnl = active["risk_amount"] * r_multiple
+                    gross_pnl = active["risk_amount"] * r_multiple
+                    friction_cost = self._friction_cost(
+                        active["risk_amount"], active["entry"], active["stop"]
+                    )
+                    pnl = gross_pnl - friction_cost
                     equity += pnl
                     trades.append(
                         BacktestTrade(
@@ -172,8 +236,10 @@ class Backtester:
                             stop_loss=active["stop"],
                             take_profit=active["target"],
                             score=active["score"],
+                            gross_pnl=gross_pnl,
+                            friction_cost=friction_cost,
                             pnl=pnl,
-                            r_multiple=r_multiple,
+                            r_multiple=pnl / active["risk_amount"],
                             exit_reason=reason,
                         )
                     )
@@ -181,6 +247,8 @@ class Backtester:
                     peak = max(peak, equity)
                     max_drawdown = max(max_drawdown, (peak - equity) / peak * 100)
             if active is not None:
+                continue
+            if entry_start_time is not None and current.time < entry_start_time:
                 continue
 
             m5_window = m5_candles[index - self.config.candle_count : index]
@@ -233,7 +301,11 @@ class Backtester:
             distance = (final.close - active["entry"]) * active["direction"].sign
             initial_risk = abs(active["entry"] - active["stop"])
             r_multiple = distance / initial_risk if initial_risk else 0.0
-            pnl = active["risk_amount"] * r_multiple
+            gross_pnl = active["risk_amount"] * r_multiple
+            friction_cost = self._friction_cost(
+                active["risk_amount"], active["entry"], active["stop"]
+            )
+            pnl = gross_pnl - friction_cost
             equity += pnl
             trades.append(
                 BacktestTrade(
@@ -245,8 +317,10 @@ class Backtester:
                     stop_loss=active["stop"],
                     take_profit=active["target"],
                     score=active["score"],
+                    gross_pnl=gross_pnl,
+                    friction_cost=friction_cost,
                     pnl=pnl,
-                    r_multiple=r_multiple,
+                    r_multiple=pnl / active["risk_amount"],
                     exit_reason="end_of_data",
                 )
             )
@@ -259,4 +333,20 @@ class Backtester:
             return_percent=(equity / self.initial_equity - 1) * 100,
             max_drawdown_percent=max_drawdown,
             trades=tuple(trades),
+        )
+
+    def run_walk_forward(
+        self, canonical_symbol: str, m5_candles: list[Candle], forward_start: int
+    ) -> WalkForwardReport:
+        split_at = bisect_right([candle.time for candle in m5_candles], forward_start - 1)
+        in_sample_candles = m5_candles[:split_at]
+        if len(in_sample_candles) < self.config.candle_count + 10:
+            raise ValueError("Not enough candles before forward_start for the in-sample test")
+        if len(m5_candles) - split_at < self.config.candle_count + 10:
+            raise ValueError("Not enough candles after forward_start for the forward test")
+        return WalkForwardReport(
+            symbol=canonical_symbol,
+            forward_start=forward_start,
+            in_sample=self.run(canonical_symbol, in_sample_candles),
+            forward=self.run(canonical_symbol, m5_candles, entry_start_time=forward_start),
         )
